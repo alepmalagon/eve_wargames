@@ -345,14 +345,14 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
     try:
         from ..services.data_processor import DataProcessor
         
-        # Initialize data processor
-        data_processor = DataProcessor(db)
-        
-        # Ensure factions exist
-        data_processor._ensure_factions_exist()
-        
         # Collect and process data
         async with esi_client as client:
+            # Initialize data processor with ESI client
+            data_processor = DataProcessor(db, client)
+            
+            # Ensure factions exist
+            data_processor._ensure_factions_exist()
+            
             # Get faction warfare systems
             fw_systems = await client.get_faction_warfare_systems()
             
@@ -371,7 +371,7 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
                 }
             
             # Process systems
-            result = data_processor._process_systems(warzone_systems)
+            result = await data_processor._process_systems(warzone_systems)
             
             # Create warzone snapshot
             fw_stats = await client.get_faction_warfare_stats()

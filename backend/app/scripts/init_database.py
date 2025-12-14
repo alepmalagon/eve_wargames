@@ -41,17 +41,17 @@ async def init_database():
     db = SessionLocal()
     
     try:
-        # Initialize data processor
-        data_processor = DataProcessor(db)
-        
-        # Ensure factions exist
-        logger.info("Creating faction records...")
-        data_processor._ensure_factions_exist()
-        
         # Fetch and process initial faction warfare data
         logger.info("Fetching initial faction warfare data from ESI...")
         
         async with esi_client as client:
+            # Initialize data processor with ESI client
+            data_processor = DataProcessor(db, client)
+            
+            # Ensure factions exist
+            logger.info("Creating faction records...")
+            data_processor._ensure_factions_exist()
+            
             # Get faction warfare systems
             fw_systems = await client.get_faction_warfare_systems()
             
@@ -71,7 +71,7 @@ async def init_database():
             
             # Process systems and create initial snapshots
             logger.info("Processing systems and creating initial data...")
-            result = data_processor._process_systems(warzone_systems)
+            result = await data_processor._process_systems(warzone_systems)
             
             logger.info(f"Created {result['snapshots_created']} snapshots")
             logger.info(f"Updated {result['systems_updated']} systems")

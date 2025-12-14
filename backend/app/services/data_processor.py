@@ -27,10 +27,11 @@ class DataProcessor:
     MINMATAR_FACTION_ID = 500002
     AMARR_FACTION_ID = 500003
     
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, esi_client=None):
         self.db = db_session
+        self.esi_client = esi_client
     
-    def process_faction_warfare_data(
+    async def process_faction_warfare_data(
         self, 
         fw_systems: List[Dict], 
         fw_stats: Optional[Dict] = None
@@ -55,7 +56,7 @@ class DataProcessor:
             self._ensure_factions_exist()
             
             # Process individual systems
-            system_results = self._process_systems(warzone_systems)
+            system_results = await self._process_systems(warzone_systems)
             
             # Create warzone-wide snapshot
             warzone_snapshot = self._create_warzone_snapshot(warzone_systems, fw_stats)
@@ -126,7 +127,7 @@ class DataProcessor:
                 self.db.add(faction)
                 logger.info(f"Created faction: {faction_data['name']}")
     
-    def _process_systems(self, warzone_systems: List[Dict]) -> Dict:
+    async def _process_systems(self, warzone_systems: List[Dict]) -> Dict:
         """
         Process individual systems and create snapshots.
         
@@ -145,20 +146,37 @@ class DataProcessor:
                 if not system_id:
                     continue
                 
+                # Debug: Log the raw system data to see what we're getting
+                logger.info(f"Processing system {system_id}: {system_data}")
+                
                 # Get or create system record
                 system = self.db.query(System).filter(
                     System.system_id == system_id
                 ).first()
                 
                 if not system:
+                    # Fetch system info from ESI to get the real name
+                    system_info = await self.esi_client.get_system_info(system_id)
+                    system_name = system_info.get('name', f"System_{system_id}") if system_info else f"System_{system_id}"
+                    security_status = system_info.get('security_status', 0.0) if system_info else 0.0
+                    
                     # Create new system record
                     system = System(
                         system_id=system_id,
-                        name=f"System_{system_id}",  # Will be updated with actual name later
-                        security_status=0.0  # Default security status, will be updated later
+                        name=system_name,
+                        security_status=security_status
                     )
                     self.db.add(system)
                     self.db.flush()  # Get the ID
+                    logger.info(f"Created system: {system_name} (ID: {system_id})")
+                else:
+                    # Update existing system name if it's still a placeholder
+                    if system.name.startswith("System_"):
+                        system_info = await self.esi_client.get_system_info(system_id)
+                        if system_info:
+                            system.name = system_info.get('name', system.name)
+                            system.security_status = system_info.get('security_status', system.security_status)
+                            logger.info(f"Updated system name: {system.name} (ID: {system_id})")
                 
                 # Update system current status
                 system.controlling_faction_id = system_data.get('occupier_faction_id')
