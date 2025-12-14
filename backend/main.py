@@ -12,6 +12,7 @@ import uvicorn
 from app.config import settings
 from app.api import faction_warfare, systems, kills
 from app.database import engine, Base
+from app.services.esi_client import esi_client
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -74,6 +75,11 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "eve-wargames-api"}
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on application shutdown."""
+    await esi_client.close()
 
 if __name__ == "__main__":
     uvicorn.run(

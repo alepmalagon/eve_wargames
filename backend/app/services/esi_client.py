@@ -51,6 +51,12 @@ class ESIClient:
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Don't close the client here since we're using a global instance
+        # The client will be closed when the application shuts down
+        pass
+    
+    async def close(self):
+        """Explicitly close the HTTP client."""
         await self.http_client.aclose()
     
     def _get_cache_key(self, endpoint: str, params: Dict = None) -> str:
