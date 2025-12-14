@@ -162,7 +162,16 @@ class DataProcessor:
                 
                 # Update system current status
                 system.controlling_faction_id = system_data.get('occupier_faction_id')
-                system.contested = system_data.get('contested', 0)
+                
+                # Convert contested status to integer (0 = stable, 1 = contested)
+                contested_value = system_data.get('contested', 0)
+                if isinstance(contested_value, str):
+                    system.contested = 1 if contested_value.lower() == 'contested' else 0
+                elif isinstance(contested_value, bool):
+                    system.contested = 1 if contested_value else 0
+                else:
+                    system.contested = int(contested_value) if contested_value else 0
+                
                 system.capture_percent = system_data.get('capture_percent', 0.0)
                 system.advantage_percent = system_data.get('advantage_percent', 0.0)
                 
@@ -174,7 +183,7 @@ class DataProcessor:
                     controlling_faction_id=system_data.get('occupier_faction_id'),
                     capture_percent=system_data.get('capture_percent', 0.0),
                     advantage_percent=system_data.get('advantage_percent', 0.0),
-                    contested=system_data.get('contested', 0),
+                    contested=system.contested,  # Use the converted value from above
                     timestamp=datetime.utcnow()
                 )
                 
