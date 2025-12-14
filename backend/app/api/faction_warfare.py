@@ -329,3 +329,66 @@ async def trigger_data_collection():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to trigger data collection: {str(e)}")
+
+
+@router.post("/collect-data-now")
+async def collect_data_immediately(db: Session = Depends(get_db)):
+    """
+    Immediately collect faction warfare data without using Celery.
+    
+    This endpoint directly processes ESI data and stores it in the database.
+    Useful for initial setup or when Celery workers are not running.
+    
+    Returns:
+        Collection result information
+    """
+    try:
+        from ..services.data_processor import DataProcessor
+        
+        # Initialize data processor
+        data_processor = DataProcessor(db)
+        
+        # Ensure factions exist
+        data_processor._ensure_factions_exist()
+        
+        # Collect and process data
+        async with esi_client as client:
+            # Get faction warfare systems
+            fw_systems = await client.get_faction_warfare_systems()
+            
+            if not fw_systems:
+                raise HTTPException(status_code=503, detail="Failed to fetch faction warfare systems from ESI")
+            
+            # Filter for Minmatar/Amarr warzone
+            warzone_systems = data_processor._filter_warzone_systems(fw_systems)
+            
+            if not warzone_systems:
+                return {
+                    "status": "completed",
+                    "message": "No warzone systems found (this might be normal)",
+                    "systems_processed": 0,
+                    "snapshots_created": 0
+                }
+            
+            # Process systems
+            result = data_processor._process_systems(warzone_systems)
+            
+            # Create warzone snapshot
+            fw_stats = await client.get_faction_warfare_stats()
+            warzone_result = data_processor._create_warzone_snapshot(warzone_systems, fw_stats)
+            
+            # Commit changes
+            db.commit()
+            
+            return {
+                "status": "completed",
+                "message": "Data collection completed successfully",
+                "systems_processed": len(warzone_systems),
+                "snapshots_created": result.get("snapshots_created", 0),
+                "systems_updated": result.get("systems_updated", 0),
+                "warzone_snapshot_created": bool(warzone_result)
+            }
+            
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to collect data: {str(e)}")
