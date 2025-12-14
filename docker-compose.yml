@@ -88,7 +88,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A app.tasks.scheduler worker --loglevel=info
+    command: celery -A app.celery_app worker --loglevel=info
 
   # Celery Beat for Scheduled Tasks
   celery-beat:
@@ -108,7 +108,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A app.tasks.scheduler beat --loglevel=info
+    command: celery -A app.celery_app beat --loglevel=info
 
 volumes:
   postgres_data:

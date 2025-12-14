@@ -107,8 +107,25 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Error fetching faction warfare data: {str(e)}")
     
+    # Get previous snapshot for trend calculation
+    previous_snapshot = db.query(FactionWarfareSnapshot).filter(
+        FactionWarfareSnapshot.timestamp < latest_snapshot.timestamp
+    ).order_by(desc(FactionWarfareSnapshot.timestamp)).first()
+    
+    # Calculate trends if previous data exists
+    trends = {}
+    if previous_snapshot:
+        trends = {
+            "minmatar_systems_change": latest_snapshot.minmatar_systems_controlled - previous_snapshot.minmatar_systems_controlled,
+            "amarr_systems_change": latest_snapshot.amarr_systems_controlled - previous_snapshot.amarr_systems_controlled,
+            "contested_systems_change": latest_snapshot.total_contested_systems - previous_snapshot.total_contested_systems,
+            "time_period_hours": (latest_snapshot.timestamp - previous_snapshot.timestamp).total_seconds() / 3600
+        }
+    
     return {
         "timestamp": latest_snapshot.timestamp,
+        "source": "database",
+        "trends": trends,
         "minmatar": {
             "systems_controlled": latest_snapshot.minmatar_systems_controlled,
             "systems_contested": latest_snapshot.minmatar_systems_contested,
@@ -285,3 +302,30 @@ async def get_faction_warfare_leaderboards():
             
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Error fetching leaderboard data: {str(e)}")
+
+
+@router.post("/collect-data")
+async def trigger_data_collection():
+    """
+    Manually trigger faction warfare data collection.
+    
+    This endpoint allows manual triggering of the data collection task
+    for testing and immediate data updates.
+    
+    Returns:
+        Task result information
+    """
+    try:
+        from ..tasks.data_collection import collect_faction_warfare_data
+        
+        # Trigger the task
+        result = collect_faction_warfare_data.delay()
+        
+        return {
+            "status": "triggered",
+            "task_id": result.id,
+            "message": "Data collection task has been queued"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to trigger data collection: {str(e)}")
