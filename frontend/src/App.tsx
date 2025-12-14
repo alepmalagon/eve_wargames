@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { Navigation } from './components/Navigation'
 import { Dashboard } from './components/Dashboard'
 import { SystemsView } from './components/SystemsView'
+import { SystemDetail } from './components/SystemDetail'
 import { KillsView } from './components/KillsView'
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/systems" element={<SystemsView />} />
+          <Route path="/systems/:systemId" element={<SystemDetail />} />
           <Route path="/kills" element={<KillsView />} />
         </Routes>
       </main>

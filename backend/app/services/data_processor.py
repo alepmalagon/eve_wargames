@@ -155,30 +155,26 @@ class DataProcessor:
                     system = System(
                         system_id=system_id,
                         name=f"System_{system_id}",  # Will be updated with actual name later
-                        constellation_id=system_data.get('constellation_id'),
-                        region_id=system_data.get('region_id')
+                        security_status=0.0  # Default security status, will be updated later
                     )
                     self.db.add(system)
                     self.db.flush()  # Get the ID
                 
                 # Update system current status
-                system.occupier_faction_id = system_data.get('occupier_faction_id')
-                system.owner_faction_id = system_data.get('owner_faction_id')
-                system.contested = system_data.get('contested', 0) == 1
+                system.controlling_faction_id = system_data.get('occupier_faction_id')
+                system.contested = system_data.get('contested', 0)
                 system.capture_percent = system_data.get('capture_percent', 0.0)
                 system.advantage_percent = system_data.get('advantage_percent', 0.0)
-                system.last_updated = datetime.utcnow()
                 
                 systems_updated += 1
                 
                 # Create system snapshot
                 snapshot = SystemSnapshot(
-                    system_id=system.id,
-                    esi_system_id=system_id,
-                    faction_id=system_data.get('occupier_faction_id'),
+                    system_id=system_id,
+                    controlling_faction_id=system_data.get('occupier_faction_id'),
                     capture_percent=system_data.get('capture_percent', 0.0),
                     advantage_percent=system_data.get('advantage_percent', 0.0),
-                    contested=system_data.get('contested', 0) == 1,
+                    contested=system_data.get('contested', 0),
                     timestamp=datetime.utcnow()
                 )
                 
