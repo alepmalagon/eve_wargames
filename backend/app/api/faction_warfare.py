@@ -31,7 +31,81 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
     ).first()
     
     if not latest_snapshot:
-        raise HTTPException(status_code=404, detail="No faction warfare data available")
+        # If no database data exists, fall back to live ESI data
+        try:
+            async with esi_client as client:
+                fw_systems = await client.get_faction_warfare_systems()
+                
+                if not fw_systems:
+                    raise HTTPException(status_code=503, detail="No faction warfare data available from database or ESI")
+                
+                # Filter for Minmatar/Amarr warzone systems
+                minmatar_faction_id = 500002  # Minmatar Republic
+                amarr_faction_id = 500003     # Amarr Empire
+                
+                warzone_systems = [
+                    system for system in fw_systems
+                    if system.get('occupier_faction_id') in [minmatar_faction_id, amarr_faction_id]
+                    or system.get('owner_faction_id') in [minmatar_faction_id, amarr_faction_id]
+                ]
+                
+                # Calculate basic statistics
+                minmatar_controlled = len([
+                    s for s in warzone_systems 
+                    if s.get('occupier_faction_id') == minmatar_faction_id
+                ])
+                
+                amarr_controlled = len([
+                    s for s in warzone_systems 
+                    if s.get('occupier_faction_id') == amarr_faction_id
+                ])
+                
+                contested = len([
+                    s for s in warzone_systems 
+                    if s.get('contested', 0) == 1
+                ])
+                
+                total_systems = len(warzone_systems)
+                
+                return {
+                    "timestamp": datetime.utcnow(),
+                    "source": "live_esi_fallback",
+                    "minmatar": {
+                        "systems_controlled": minmatar_controlled,
+                        "systems_contested": len([s for s in warzone_systems if s.get('contested', 0) == 1 and s.get('occupier_faction_id') == minmatar_faction_id]),
+                        "control_percentage": (minmatar_controlled / total_systems * 100) if total_systems > 0 else 0,
+                        "total_capture_percent": 0.0,  # Not available from live data
+                        "total_advantage_percent": 0.0,  # Not available from live data
+                        "kills_24h": 0,  # Not available from live data
+                        "losses_24h": 0,  # Not available from live data
+                        "kills_value_24h": 0.0,  # Not available from live data
+                        "losses_value_24h": 0.0,  # Not available from live data
+                        "efficiency": 0.0  # Not available from live data
+                    },
+                    "amarr": {
+                        "systems_controlled": amarr_controlled,
+                        "systems_contested": len([s for s in warzone_systems if s.get('contested', 0) == 1 and s.get('occupier_faction_id') == amarr_faction_id]),
+                        "control_percentage": (amarr_controlled / total_systems * 100) if total_systems > 0 else 0,
+                        "total_capture_percent": 0.0,  # Not available from live data
+                        "total_advantage_percent": 0.0,  # Not available from live data
+                        "kills_24h": 0,  # Not available from live data
+                        "losses_24h": 0,  # Not available from live data
+                        "kills_value_24h": 0.0,  # Not available from live data
+                        "losses_value_24h": 0.0,  # Not available from live data
+                        "efficiency": 0.0  # Not available from live data
+                    },
+                    "warzone": {
+                        "total_systems": total_systems,
+                        "contested_systems": contested,
+                        "contested_percentage": (contested / total_systems * 100) if total_systems > 0 else 0,
+                        "total_kills_24h": 0,  # Not available from live data
+                        "total_kill_value_24h": 0.0,  # Not available from live data
+                        "activity_index": 0.0  # Not available from live data
+                    }
+                }
+                
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Error fetching faction warfare data: {str(e)}")
     
     return {
         "timestamp": latest_snapshot.timestamp,
