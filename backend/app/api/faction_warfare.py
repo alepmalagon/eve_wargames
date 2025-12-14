@@ -353,29 +353,27 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
             # Ensure factions exist
             data_processor._ensure_factions_exist()
             
-            # Get faction warfare systems
+            # Get faction warfare systems from ESI
             fw_systems = await client.get_faction_warfare_systems()
             
             if not fw_systems:
                 raise HTTPException(status_code=503, detail="Failed to fetch faction warfare systems from ESI")
             
-            # Filter for Minmatar/Amarr warzone
-            warzone_systems = data_processor._filter_warzone_systems(fw_systems)
+            # Get warzone data for advantage information
+            warzone_data = await client.get_warzone_data()
             
-            if not warzone_systems:
-                return {
-                    "status": "completed",
-                    "message": "No warzone systems found (this might be normal)",
-                    "systems_processed": 0,
-                    "snapshots_created": 0
-                }
+            if not warzone_data:
+                logger.warning("Failed to fetch warzone data - advantage percentages will be 0")
             
-            # Process systems
-            result = await data_processor._process_systems(warzone_systems)
-            
-            # Create warzone snapshot
+            # Get faction warfare stats
             fw_stats = await client.get_faction_warfare_stats()
-            warzone_result = data_processor._create_warzone_snapshot(warzone_systems, fw_stats)
+            
+            # Process all data together
+            result = await data_processor.process_faction_warfare_data(
+                fw_systems=fw_systems,
+                fw_stats=fw_stats,
+                warzone_data=warzone_data
+            )
             
             # Commit changes
             db.commit()
@@ -383,10 +381,10 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
             return {
                 "status": "completed",
                 "message": "Data collection completed successfully",
-                "systems_processed": len(warzone_systems),
+                "systems_processed": result.get("systems_processed", 0),
                 "snapshots_created": result.get("snapshots_created", 0),
                 "systems_updated": result.get("systems_updated", 0),
-                "warzone_snapshot_created": bool(warzone_result)
+                "warzone_snapshot_created": result.get("warzone_snapshot_created", False)
             }
             
     except Exception as e:

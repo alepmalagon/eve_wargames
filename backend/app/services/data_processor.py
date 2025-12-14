@@ -34,7 +34,8 @@ class DataProcessor:
     async def process_faction_warfare_data(
         self, 
         fw_systems: List[Dict], 
-        fw_stats: Optional[Dict] = None
+        fw_stats: Optional[Dict] = None,
+        warzone_data: Optional[List[Dict]] = None
     ) -> Dict:
         """
         Process faction warfare systems data and store in database.
@@ -56,7 +57,7 @@ class DataProcessor:
             self._ensure_factions_exist()
             
             # Process individual systems
-            system_results = await self._process_systems(warzone_systems)
+            system_results = await self._process_systems(warzone_systems, warzone_data)
             
             # Create warzone-wide snapshot
             warzone_snapshot = self._create_warzone_snapshot(warzone_systems, fw_stats)
@@ -127,7 +128,7 @@ class DataProcessor:
                 self.db.add(faction)
                 logger.info(f"Created faction: {faction_data['name']}")
     
-    async def _process_systems(self, warzone_systems: List[Dict]) -> Dict:
+    async def _process_systems(self, warzone_systems: List[Dict], warzone_data: Optional[List[Dict]] = None) -> Dict:
         """
         Process individual systems and create snapshots.
         
@@ -190,8 +191,25 @@ class DataProcessor:
                 else:
                     system.contested = int(contested_value) if contested_value else 0
                 
-                system.capture_percent = system_data.get('capture_percent', 0.0)
-                system.advantage_percent = system_data.get('advantage_percent', 0.0)
+                # Calculate capture percentage from victory points
+                victory_points = system_data.get('victory_points', 0)
+                victory_points_threshold = system_data.get('victory_points_threshold', 1)
+                if victory_points_threshold > 0:
+                    system.capture_percent = (victory_points / victory_points_threshold) * 100
+                else:
+                    system.capture_percent = 0.0
+                
+                # Find advantage data for this system from warzone API
+                advantage_percent = 0.0
+                if warzone_data:
+                    warzone_system = next(
+                        (ws for ws in warzone_data if ws.get('solarsystemID') == system_id), 
+                        None
+                    )
+                    if warzone_system:
+                        advantage_percent = self._calculate_advantage_percent(warzone_system)
+                
+                system.advantage_percent = advantage_percent
                 
                 systems_updated += 1
                 
@@ -379,3 +397,42 @@ class DataProcessor:
         except Exception as e:
             logger.error(f"Error calculating trends: {str(e)}", exc_info=True)
             return {"error": str(e)}
+    
+    def _calculate_advantage_percent(self, warzone_system: Dict) -> float:
+        """
+        Calculate advantage percentage from warzone system data.
+        
+        Args:
+            warzone_system: System data from warzone API
+            
+        Returns:
+            Total advantage percentage (difference between highest and lowest faction)
+        """
+        try:
+            advantages = warzone_system.get('advantage', [])
+            
+            # Extract Minmatar and Amarr advantages
+            minmatar_advantage = 0
+            amarr_advantage = 0
+            
+            for adv in advantages:
+                faction_id = adv.get('factionID')
+                total_amount = adv.get('totalAmount', 0)
+                
+                if faction_id == self.MINMATAR_FACTION_ID:  # 500002
+                    minmatar_advantage = total_amount
+                elif faction_id == self.AMARR_FACTION_ID:  # 500003
+                    amarr_advantage = total_amount
+            
+            # Calculate total advantage as difference between highest and lowest
+            total_advantage = abs(minmatar_advantage - amarr_advantage)
+            
+            logger.debug(f"System {warzone_system.get('solarsystemID')}: "
+                        f"Minmatar={minmatar_advantage}, Amarr={amarr_advantage}, "
+                        f"Total={total_advantage}")
+            
+            return float(total_advantage)
+            
+        except Exception as e:
+            logger.error(f"Error calculating advantage: {e}")
+            return 0.0

@@ -232,6 +232,29 @@ class ESIClient:
             cache_ttl=3600  # Cache alliance info for 1 hour
         )
     
+    async def get_warzone_data(self) -> Optional[List[Dict]]:
+        """
+        Get warzone data from EVE Online's warzone API (not ESI).
+        This includes advantage data that's not available in ESI.
+        
+        Returns:
+            List of warzone system data with advantage information
+        """
+        try:
+            # Use the EVE Online warzone API directly
+            warzone_url = "https://www.eveonline.com/api/warzone/"
+            
+            response = await self.http_client.get(warzone_url)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Fetched warzone data for {len(data)} systems")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch warzone data: {e}")
+            return None
+    
     async def get_killmails_for_system(
         self,
         system_id: int,

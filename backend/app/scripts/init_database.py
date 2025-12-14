@@ -52,7 +52,7 @@ async def init_database():
             logger.info("Creating faction records...")
             data_processor._ensure_factions_exist()
             
-            # Get faction warfare systems
+            # Get faction warfare systems from ESI
             fw_systems = await client.get_faction_warfare_systems()
             
             if not fw_systems:
@@ -61,28 +61,29 @@ async def init_database():
             
             logger.info(f"Fetched {len(fw_systems)} faction warfare systems")
             
-            # Filter for Minmatar/Amarr warzone
-            warzone_systems = data_processor._filter_warzone_systems(fw_systems)
-            logger.info(f"Found {len(warzone_systems)} systems in Minmatar/Amarr warzone")
+            # Get warzone data for advantage information
+            warzone_data = await client.get_warzone_data()
             
-            if not warzone_systems:
-                logger.warning("No warzone systems found. This might be normal if no systems are contested.")
-                return True
+            if not warzone_data:
+                logger.warning("Failed to fetch warzone data - advantage percentages will be 0")
+            else:
+                logger.info(f"Fetched warzone data for {len(warzone_data)} systems")
             
-            # Process systems and create initial snapshots
+            # Get faction warfare stats
+            fw_stats = await client.get_faction_warfare_stats()
+            
+            # Process all data together
             logger.info("Processing systems and creating initial data...")
-            result = await data_processor._process_systems(warzone_systems)
+            result = await data_processor.process_faction_warfare_data(
+                fw_systems=fw_systems,
+                fw_stats=fw_stats,
+                warzone_data=warzone_data
+            )
             
+            logger.info(f"Processed {result['systems_processed']} systems")
             logger.info(f"Created {result['snapshots_created']} snapshots")
             logger.info(f"Updated {result['systems_updated']} systems")
-            
-            # Create initial warzone snapshot
-            logger.info("Creating initial warzone snapshot...")
-            fw_stats = await client.get_faction_warfare_stats()
-            warzone_result = data_processor._create_warzone_snapshot(warzone_systems, fw_stats)
-            
-            if warzone_result:
-                logger.info("Created initial warzone snapshot")
+            logger.info(f"Warzone snapshot created: {result['warzone_snapshot_created']}")
             
             # Commit all changes
             db.commit()
