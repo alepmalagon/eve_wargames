@@ -201,15 +201,22 @@ class DataProcessor:
                 
                 # Find advantage data for this system from warzone API
                 advantage_percent = 0.0
+                minmatar_advantage = 0.0
+                amarr_advantage = 0.0
                 if warzone_data:
                     warzone_system = next(
                         (ws for ws in warzone_data if ws.get('solarsystemID') == system_id), 
                         None
                     )
                     if warzone_system:
-                        advantage_percent = self._calculate_advantage_percent(warzone_system)
+                        advantage_data = self._calculate_advantage_data(warzone_system)
+                        advantage_percent = advantage_data['total_advantage']
+                        minmatar_advantage = advantage_data['minmatar_advantage']
+                        amarr_advantage = advantage_data['amarr_advantage']
                 
                 system.advantage_percent = advantage_percent
+                system.minmatar_advantage = minmatar_advantage
+                system.amarr_advantage = amarr_advantage
                 
                 systems_updated += 1
                 
@@ -217,8 +224,10 @@ class DataProcessor:
                 snapshot = SystemSnapshot(
                     system_id=system_id,
                     controlling_faction_id=system_data.get('occupier_faction_id'),
-                    capture_percent=system_data.get('capture_percent', 0.0),
-                    advantage_percent=system_data.get('advantage_percent', 0.0),
+                    capture_percent=system.capture_percent,  # Use calculated value
+                    advantage_percent=system.advantage_percent,  # Use calculated value
+                    minmatar_advantage=system.minmatar_advantage,  # Individual faction advantage
+                    amarr_advantage=system.amarr_advantage,  # Individual faction advantage
                     contested=system.contested,  # Use the converted value from above
                     timestamp=datetime.utcnow()
                 )
@@ -398,15 +407,15 @@ class DataProcessor:
             logger.error(f"Error calculating trends: {str(e)}", exc_info=True)
             return {"error": str(e)}
     
-    def _calculate_advantage_percent(self, warzone_system: Dict) -> float:
+    def _calculate_advantage_data(self, warzone_system: Dict) -> Dict:
         """
-        Calculate advantage percentage from warzone system data.
+        Calculate advantage data from warzone system data.
         
         Args:
             warzone_system: System data from warzone API
             
         Returns:
-            Total advantage percentage (difference between highest and lowest faction)
+            Dictionary with total_advantage, minmatar_advantage, and amarr_advantage
         """
         try:
             advantages = warzone_system.get('advantage', [])
@@ -431,8 +440,16 @@ class DataProcessor:
                         f"Minmatar={minmatar_advantage}, Amarr={amarr_advantage}, "
                         f"Total={total_advantage}")
             
-            return float(total_advantage)
+            return {
+                'total_advantage': float(total_advantage),
+                'minmatar_advantage': float(minmatar_advantage),
+                'amarr_advantage': float(amarr_advantage)
+            }
             
         except Exception as e:
             logger.error(f"Error calculating advantage: {e}")
-            return 0.0
+            return {
+                'total_advantage': 0.0,
+                'minmatar_advantage': 0.0,
+                'amarr_advantage': 0.0
+            }

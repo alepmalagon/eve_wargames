@@ -11,6 +11,8 @@ interface System {
   contested: boolean
   capture_percent: number
   advantage_percent: number
+  minmatar_advantage: number
+  amarr_advantage: number
   updated_at: string
 }
 
@@ -27,6 +29,21 @@ export const SystemsView: React.FC = () => {
   const [contestedFilter, setContestedFilter] = useState<boolean | null>(null)
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  // Faction constants
+  const MINMATAR_FACTION_ID = 500002
+  const AMARR_FACTION_ID = 500003
+
+  // Function to get advantage bar color based on leading faction
+  const getAdvantageBarColor = (system: System) => {
+    if (system.minmatar_advantage > system.amarr_advantage) {
+      return 'bg-blue-500' // Minmatar color
+    } else if (system.amarr_advantage > system.minmatar_advantage) {
+      return 'bg-red-500' // Amarr color
+    } else {
+      return 'bg-gray-500' // Neutral/equal
+    }
+  }
 
   useEffect(() => {
     fetchSystems()
@@ -336,7 +353,7 @@ export const SystemsView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div className="w-16 bg-gray-700 rounded-full h-2">
                         <div 
-                          className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                          className={`${getAdvantageBarColor(system)} h-2 rounded-full transition-all duration-300`}
                           style={{ width: `${Math.max(0, Math.min(100, system.advantage_percent))}%` }}
                         ></div>
                       </div>

@@ -29,6 +29,8 @@ class System(Base):
     # Current control percentages (latest snapshot)
     capture_percent = Column(Float, default=0.0)
     advantage_percent = Column(Float, default=0.0)
+    minmatar_advantage = Column(Float, default=0.0)
+    amarr_advantage = Column(Float, default=0.0)
     
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -62,6 +64,8 @@ class SystemSnapshot(Base):
     contested = Column(Integer, default=0)  # 0 = stable, 1 = contested
     capture_percent = Column(Float, default=0.0)
     advantage_percent = Column(Float, default=0.0)
+    minmatar_advantage = Column(Float, default=0.0)
+    amarr_advantage = Column(Float, default=0.0)
     
     # Timestamp for this snapshot
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)

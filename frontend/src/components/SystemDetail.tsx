@@ -30,6 +30,8 @@ interface SystemDetails {
   contested: boolean
   capture_percent: number
   advantage_percent: number
+  minmatar_advantage: number
+  amarr_advantage: number
   created_at: string
   updated_at: string
   recent_snapshots: Array<{
@@ -38,6 +40,8 @@ interface SystemDetails {
     contested: boolean
     capture_percent: number
     advantage_percent: number
+    minmatar_advantage: number
+    amarr_advantage: number
   }>
 }
 
@@ -57,6 +61,8 @@ interface TrendData {
     contested: boolean
     capture_percent: number
     advantage_percent: number
+    minmatar_advantage: number
+    amarr_advantage: number
   }>
 }
 
