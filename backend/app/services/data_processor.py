@@ -105,14 +105,14 @@ class DataProcessor:
             {
                 "faction_id": self.MINMATAR_FACTION_ID,
                 "name": "Minmatar Republic",
-                "ticker": "MIN",
-                "militia_name": "Tribal Liberation Force"
+                "description": "The Minmatar Republic faction in EVE Online",
+                "is_militia": True
             },
             {
                 "faction_id": self.AMARR_FACTION_ID,
-                "name": "Amarr Empire", 
-                "ticker": "AMR",
-                "militia_name": "Imperial Navy"
+                "name": "Amarr Empire",
+                "description": "The Amarr Empire faction in EVE Online",
+                "is_militia": True
             }
         ]
         
