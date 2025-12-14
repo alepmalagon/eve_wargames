@@ -40,9 +40,9 @@ export const SystemsView: React.FC = () => {
     console.log(`System ${system.name}: Minmatar=${system.minmatar_advantage}, Amarr=${system.amarr_advantage}`)
     
     if (system.minmatar_advantage > system.amarr_advantage) {
-      return 'bg-blue-500' // Minmatar color
+      return 'bg-red-400' // Minmatar color - rgb(248 113 113)
     } else if (system.amarr_advantage > system.minmatar_advantage) {
-      return 'bg-red-500' // Amarr color
+      return 'bg-yellow-400' // Amarr color - rgb(250 204 21)
     } else {
       return 'bg-gray-500' // Neutral/equal
     }
