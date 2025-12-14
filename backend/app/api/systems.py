@@ -52,6 +52,8 @@ async def get_systems(
             "contested": bool(system.contested),
             "capture_percent": system.capture_percent,
             "advantage_percent": system.advantage_percent,
+            "minmatar_advantage": system.minmatar_advantage,
+            "amarr_advantage": system.amarr_advantage,
             "updated_at": system.updated_at
         }
         for system in systems
@@ -93,6 +95,8 @@ async def get_system_details(
         "contested": bool(system.contested),
         "capture_percent": system.capture_percent,
         "advantage_percent": system.advantage_percent,
+        "minmatar_advantage": system.minmatar_advantage,
+        "amarr_advantage": system.amarr_advantage,
         "created_at": system.created_at,
         "updated_at": system.updated_at,
         "recent_snapshots": [
@@ -101,7 +105,9 @@ async def get_system_details(
                 "controlling_faction_id": snapshot.controlling_faction_id,
                 "contested": bool(snapshot.contested),
                 "capture_percent": snapshot.capture_percent,
-                "advantage_percent": snapshot.advantage_percent
+                "advantage_percent": snapshot.advantage_percent,
+                "minmatar_advantage": snapshot.minmatar_advantage,
+                "amarr_advantage": snapshot.amarr_advantage
             }
             for snapshot in recent_snapshots
         ]
@@ -157,7 +163,9 @@ async def get_system_trends(
                 "controlling_faction_id": snapshot.controlling_faction_id,
                 "contested": bool(snapshot.contested),
                 "capture_percent": snapshot.capture_percent,
-                "advantage_percent": snapshot.advantage_percent
+                "advantage_percent": snapshot.advantage_percent,
+                "minmatar_advantage": snapshot.minmatar_advantage,
+                "amarr_advantage": snapshot.amarr_advantage
             }
             for snapshot in snapshots
         ]

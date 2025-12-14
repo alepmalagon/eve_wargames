@@ -36,6 +36,9 @@ export const SystemsView: React.FC = () => {
 
   // Function to get advantage bar color based on leading faction
   const getAdvantageBarColor = (system: System) => {
+    // Debug logging to see what values we're getting
+    console.log(`System ${system.name}: Minmatar=${system.minmatar_advantage}, Amarr=${system.amarr_advantage}`)
+    
     if (system.minmatar_advantage > system.amarr_advantage) {
       return 'bg-blue-500' // Minmatar color
     } else if (system.amarr_advantage > system.minmatar_advantage) {
