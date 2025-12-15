@@ -126,6 +126,17 @@ export const SystemDetail: React.FC = () => {
     }
   }
 
+  // Function to get advantage bar color based on leading faction
+  const getAdvantageBarColor = (snapshot: { minmatar_advantage: number; amarr_advantage: number }) => {
+    if (snapshot.minmatar_advantage > snapshot.amarr_advantage) {
+      return 'bg-red-400' // Minmatar color - rgb(248 113 113)
+    } else if (snapshot.amarr_advantage > snapshot.minmatar_advantage) {
+      return 'bg-yellow-400' // Amarr color - rgb(250 204 21)
+    } else {
+      return 'bg-gray-500' // Neutral/equal
+    }
+  }
+
   const formatChartData = (data: TrendData['data']) => {
     return data.map(point => ({
       timestamp: new Date(point.timestamp).toLocaleTimeString([], { 
@@ -430,7 +441,7 @@ export const SystemDetail: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-700 rounded-full h-2">
                           <div 
-                            className="bg-purple-500 h-2 rounded-full"
+                            className={`${getAdvantageBarColor(snapshot)} h-2 rounded-full transition-all duration-300`}
                             style={{ width: `${Math.max(0, Math.min(100, snapshot.advantage_percent))}%` }}
                           ></div>
                         </div>
