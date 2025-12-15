@@ -390,3 +390,81 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to collect data: {str(e)}")
+
+
+@router.post("/collect-killmails-now")
+async def collect_killmails_immediately(
+    system_id: int = Query(..., description="System ID to collect killmails for"),
+    db: Session = Depends(get_db)
+):
+    """
+    Immediately collect killmail data for a specific system from Zkillboard API.
+    
+    This endpoint fetches killmail data for the specified system and processes it
+    to track combat activity, player/corporation/alliance statistics.
+    
+    Args:
+        system_id: EVE Online system ID to collect killmails for
+        
+    Returns:
+        Collection result information including processing statistics
+    """
+    try:
+        from ..services.zkillboard_client import ZkillboardClient
+        from ..services.killmail_processor import KillmailProcessor
+        from ..models.system import System
+        
+        # Verify system exists and is a faction warfare system
+        system = db.query(System).filter(System.system_id == system_id).first()
+        if not system:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"System {system_id} not found in faction warfare systems"
+            )
+        
+        # Initialize clients
+        zkillboard_client = ZkillboardClient()
+        killmail_processor = KillmailProcessor()
+        
+        async with zkillboard_client:
+            # Fetch killmails for the system (last 24 hours by default)
+            killmails = await zkillboard_client.get_system_all_activity(system_id)
+            
+            if not killmails:
+                return {
+                    "status": "completed",
+                    "message": f"No killmails found for system {system_id} ({system.name})",
+                    "system_id": system_id,
+                    "system_name": system.name,
+                    "killmails_processed": 0,
+                    "killmails_stored": 0,
+                    "killmails_skipped": 0
+                }
+            
+            # Process killmails
+            result = await killmail_processor.process_system_killmails(
+                system_id=system_id,
+                killmails=killmails,
+                db=db
+            )
+            
+            # Commit changes
+            db.commit()
+            
+            return {
+                "status": "completed",
+                "message": f"Killmail collection completed for system {system_id} ({system.name})",
+                "system_id": system_id,
+                "system_name": system.name,
+                "killmails_processed": len(killmails),
+                "killmails_stored": result.get("stored", 0),
+                "killmails_skipped": result.get("skipped", 0),
+                "errors": result.get("errors", 0)
+            }
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to collect killmails: {str(e)}")
