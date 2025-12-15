@@ -308,9 +308,9 @@ async def get_system_killmail_stats(
     
     try:
         # Get top performers
-        top_players = await processor.get_top_players(system_id, db, limit=5, time_window_hours=time_window_hours)
-        top_corporations = await processor.get_top_corporations(system_id, db, limit=5, time_window_hours=time_window_hours)
-        top_alliances = await processor.get_top_alliances(system_id, db, limit=5, time_window_hours=time_window_hours)
+        top_players = processor.get_top_players(system_id, db, limit=5, time_window_hours=time_window_hours)
+        top_corporations = processor.get_top_corporations(system_id, db, limit=5, time_window_hours=time_window_hours)
+        top_alliances = processor.get_top_alliances(system_id, db, limit=5, time_window_hours=time_window_hours)
         
         # Get the most active ones (first in each list)
         most_active_player = top_players[0] if top_players else None

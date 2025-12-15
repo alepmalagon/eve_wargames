@@ -393,7 +393,7 @@ class KillmailProcessor:
         logger.info(f"Updated system {system_id} stats: {total_kills} kills, {total_isk_value:,.0f} ISK")
         return stats
     
-    async def get_top_players(
+    def get_top_players(
         self,
         system_id: int,
         db: Session,
@@ -434,7 +434,7 @@ class KillmailProcessor:
             for stat in player_stats
         ]
     
-    async def get_top_corporations(
+    def get_top_corporations(
         self,
         system_id: int,
         db: Session,
@@ -479,7 +479,7 @@ class KillmailProcessor:
             for stat in corp_stats
         ]
     
-    async def get_top_alliances(
+    def get_top_alliances(
         self,
         system_id: int,
         db: Session,
