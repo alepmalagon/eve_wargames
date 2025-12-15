@@ -37,7 +37,7 @@ class Killmail(Base):
     created_at = Column(DateTime, default=func.now())
     
     # Relationships
-    system = relationship("System", backref="kills")
+    system = relationship("System", backref="zkillboard_killmails")
     victim_character = relationship("Player", foreign_keys=[victim_character_id], backref="victim_kills")
     victim_corporation = relationship("Corporation", foreign_keys=[victim_corporation_id], backref="victim_kills")
     victim_alliance = relationship("Alliance", foreign_keys=[victim_alliance_id], backref="victim_kills")
