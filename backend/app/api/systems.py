@@ -13,6 +13,7 @@ from sqlalchemy import desc, and_
 from ..database import get_db
 from ..models.system import System, SystemSnapshot
 from ..services.esi_client import esi_client
+from ..services.killmail_processor import KillmailProcessor
 
 router = APIRouter()
 
@@ -278,3 +279,62 @@ async def get_systems_by_faction(
             for system in systems
         ]
     }
+
+
+@router.get("/{system_id}/killmail-stats")
+async def get_system_killmail_stats(
+    system_id: int = Path(..., description="EVE system ID"),
+    time_window_hours: int = Query(default=24, ge=1, le=168, description="Time window in hours (1-168, default 24)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get killmail statistics for a specific system.
+    
+    Args:
+        system_id: EVE system ID
+        time_window_hours: Time window in hours to analyze (1-168, default 24)
+        
+    Returns:
+        Killmail statistics including top players, corporations, and alliances
+    """
+    # Verify system exists
+    system = db.query(System).filter(System.system_id == system_id).first()
+    
+    if not system:
+        raise HTTPException(status_code=404, detail="System not found")
+    
+    # Initialize killmail processor
+    processor = KillmailProcessor()
+    
+    try:
+        # Get top performers
+        top_players = await processor.get_top_players(system_id, db, limit=5, time_window_hours=time_window_hours)
+        top_corporations = await processor.get_top_corporations(system_id, db, limit=5, time_window_hours=time_window_hours)
+        top_alliances = await processor.get_top_alliances(system_id, db, limit=5, time_window_hours=time_window_hours)
+        
+        # Get the most active ones (first in each list)
+        most_active_player = top_players[0] if top_players else None
+        most_active_corporation = top_corporations[0] if top_corporations else None
+        most_active_alliance = top_alliances[0] if top_alliances else None
+        
+        return {
+            "system": {
+                "system_id": system.system_id,
+                "name": system.name
+            },
+            "time_window_hours": time_window_hours,
+            "most_active": {
+                "player": most_active_player,
+                "corporation": most_active_corporation,
+                "alliance": most_active_alliance
+            },
+            "top_performers": {
+                "players": top_players,
+                "corporations": top_corporations,
+                "alliances": top_alliances
+            },
+            "generated_at": datetime.utcnow()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching killmail statistics: {str(e)}")

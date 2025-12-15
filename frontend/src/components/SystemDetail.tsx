@@ -9,7 +9,10 @@ import {
   TrendingUp, 
   TrendingDown,
   RefreshCw,
-  Calendar
+  Calendar,
+  Users,
+  Building,
+  Crown
 } from 'lucide-react'
 import { 
   LineChart, 
@@ -66,11 +69,71 @@ interface TrendData {
   }>
 }
 
+interface KillmailStats {
+  system: {
+    system_id: number
+    name: string
+  }
+  time_window_hours: number
+  most_active: {
+    player: {
+      character_id: number
+      character_name: string
+      kills: number
+      isk_killed: number
+    } | null
+    corporation: {
+      corporation_id: number
+      corporation_name: string
+      ticker: string
+      kills: number
+      isk_killed: number
+      unique_players: number
+    } | null
+    alliance: {
+      alliance_id: number
+      alliance_name: string
+      ticker: string
+      kills: number
+      isk_killed: number
+      unique_players: number
+      unique_corporations: number
+    } | null
+  }
+  top_performers: {
+    players: Array<{
+      character_id: number
+      character_name: string
+      kills: number
+      isk_killed: number
+    }>
+    corporations: Array<{
+      corporation_id: number
+      corporation_name: string
+      ticker: string
+      kills: number
+      isk_killed: number
+      unique_players: number
+    }>
+    alliances: Array<{
+      alliance_id: number
+      alliance_name: string
+      ticker: string
+      kills: number
+      isk_killed: number
+      unique_players: number
+      unique_corporations: number
+    }>
+  }
+  generated_at: string
+}
+
 export const SystemDetail: React.FC = () => {
   const { systemId } = useParams<{ systemId: string }>()
   const navigate = useNavigate()
   const [systemDetails, setSystemDetails] = useState<SystemDetails | null>(null)
   const [trendData, setTrendData] = useState<TrendData | null>(null)
+  const [killmailStats, setKillmailStats] = useState<KillmailStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState(24)
@@ -89,13 +152,15 @@ export const SystemDetail: React.FC = () => {
       setLoading(true)
       setError(null)
 
-      const [detailsResponse, trendsResponse] = await Promise.all([
+      const [detailsResponse, trendsResponse, killmailStatsResponse] = await Promise.all([
         systemsApi.getSystemDetails(parseInt(systemId)),
-        systemsApi.getSystemTrends(parseInt(systemId), timeRange)
+        systemsApi.getSystemTrends(parseInt(systemId), timeRange),
+        systemsApi.getSystemKillmailStats(parseInt(systemId), timeRange).catch(() => null)
       ])
 
       setSystemDetails(detailsResponse.data)
       setTrendData(trendsResponse.data)
+      setKillmailStats(killmailStatsResponse?.data || null)
     } catch (err) {
       setError('Failed to fetch system data')
       console.error('Error fetching system data:', err)
@@ -116,6 +181,14 @@ export const SystemDetail: React.FC = () => {
       case 500003: return 'Amarr Empire'
       default: return 'Unknown'
     }
+  }
+
+  const formatISK = (value: number) => {
+    if (value >= 1e12) return `${(value / 1e12).toFixed(1)}T`
+    if (value >= 1e9) return `${(value / 1e9).toFixed(1)}B`
+    if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`
+    if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`
+    return value.toFixed(0)
   }
 
   const getFactionColor = (factionId: number) => {
@@ -462,6 +535,110 @@ export const SystemDetail: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Killmail Statistics */}
+      {killmailStats && (
+        <div className="card">
+          <h2 className="text-xl font-semibold text-white mb-6">Most Active Killers (Last {killmailStats.time_window_hours}h)</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Most Active Player */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <Users className="w-6 h-6 text-blue-500" />
+                <h3 className="text-lg font-semibold text-white">Top Player</h3>
+              </div>
+              {killmailStats.most_active.player ? (
+                <div>
+                  <p className="text-white font-medium text-lg">{killmailStats.most_active.player.character_name}</p>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Kills:</span>
+                      <span className="text-red-400 font-medium">{killmailStats.most_active.player.kills}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">ISK Killed:</span>
+                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.player.isk_killed)} ISK</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400">No player data available</p>
+              )}
+            </div>
+
+            {/* Most Active Corporation */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <Building className="w-6 h-6 text-purple-500" />
+                <h3 className="text-lg font-semibold text-white">Top Corporation</h3>
+              </div>
+              {killmailStats.most_active.corporation ? (
+                <div>
+                  <p className="text-white font-medium text-lg">
+                    [{killmailStats.most_active.corporation.ticker}] {killmailStats.most_active.corporation.corporation_name}
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Kills:</span>
+                      <span className="text-red-400 font-medium">{killmailStats.most_active.corporation.kills}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">ISK Killed:</span>
+                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.corporation.isk_killed)} ISK</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Active Players:</span>
+                      <span className="text-blue-400 font-medium">{killmailStats.most_active.corporation.unique_players}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400">No corporation data available</p>
+              )}
+            </div>
+
+            {/* Most Active Alliance */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <Crown className="w-6 h-6 text-yellow-500" />
+                <h3 className="text-lg font-semibold text-white">Top Alliance</h3>
+              </div>
+              {killmailStats.most_active.alliance ? (
+                <div>
+                  <p className="text-white font-medium text-lg">
+                    &lt;{killmailStats.most_active.alliance.ticker}&gt; {killmailStats.most_active.alliance.alliance_name}
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Kills:</span>
+                      <span className="text-red-400 font-medium">{killmailStats.most_active.alliance.kills}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">ISK Killed:</span>
+                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.alliance.isk_killed)} ISK</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Active Players:</span>
+                      <span className="text-blue-400 font-medium">{killmailStats.most_active.alliance.unique_players}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 text-sm">Active Corps:</span>
+                      <span className="text-purple-400 font-medium">{killmailStats.most_active.alliance.unique_corporations}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400">No alliance data available</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 text-center">
+            <p className="text-gray-400 text-sm">
+              Data generated at: {new Date(killmailStats.generated_at).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* System Information */}
       <div className="card">
