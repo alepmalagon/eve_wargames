@@ -53,6 +53,8 @@ export const systemsApi = {
   getSystemTrends: (systemId: number, hours: number = 24) => 
     api.get(`/systems/${systemId}/trends?hours=${hours}`),
   getSystemLiveData: (systemId: number) => api.get(`/systems/${systemId}/live`),
+  getSystemKillmailStats: (systemId: number, timeWindowHours: number = 24) => 
+    api.get(`/systems/${systemId}/killmail-stats?time_window_hours=${timeWindowHours}`),
   getContestedSystems: () => api.get('/systems/contested/'),
   getSystemsByFaction: (factionId: number) => api.get(`/systems/faction/${factionId}`),
 }
