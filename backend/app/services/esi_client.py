@@ -280,6 +280,22 @@ class ESIClient:
         logger.info(f"Killmail fetching for system {system_id} not yet implemented")
         return []
     
+    async def get_killmail_details(self, killmail_id: int, killmail_hash: str) -> Optional[Dict]:
+        """
+        Get full killmail details from ESI API.
+        
+        Args:
+            killmail_id: Killmail ID
+            killmail_hash: Killmail hash
+            
+        Returns:
+            Full killmail data with victim/attacker details
+        """
+        return await self._make_request(
+            f"killmails/{killmail_id}/{killmail_hash}/",
+            cache_ttl=3600  # Cache killmail details for 1 hour
+        )
+
     async def get_faction_info(self, faction_id: int) -> Optional[Dict]:
         """
         Get information about a faction.

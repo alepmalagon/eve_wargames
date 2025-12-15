@@ -129,22 +129,48 @@ class KillmailProcessor:
             else:
                 timestamp = datetime.utcnow()
             
-            # Extract victim information
-            victim = killmail_data.get('victim', {})
-            victim_character_id = victim.get('character_id')
-            victim_corporation_id = victim.get('corporation_id')
-            victim_alliance_id = victim.get('alliance_id')
-            victim_faction_id = victim.get('faction_id')
-            victim_ship_type_id = victim.get('ship_type_id')
+            # Fetch full killmail details from ESI API
+            # Zkillboard only provides basic metadata, we need ESI for entity details
+            full_killmail = None
+            try:
+                full_killmail = await self.esi_client.get_killmail_details(killmail_id, killmail_hash)
+            except Exception as e:
+                logger.warning(f"Could not fetch full killmail details for {killmail_id}: {e}")
             
-            # Extract attacker information (final blow)
-            attackers = killmail_data.get('attackers', [])
-            final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
-            
-            attacker_character_id = final_blow_attacker.get('character_id')
-            attacker_corporation_id = final_blow_attacker.get('corporation_id')
-            attacker_alliance_id = final_blow_attacker.get('alliance_id')
-            attacker_faction_id = final_blow_attacker.get('faction_id')
+            # Extract victim information from full killmail data
+            if full_killmail:
+                victim = full_killmail.get('victim', {})
+                victim_character_id = victim.get('character_id')
+                victim_corporation_id = victim.get('corporation_id')
+                victim_alliance_id = victim.get('alliance_id')
+                victim_faction_id = victim.get('faction_id')
+                victim_ship_type_id = victim.get('ship_type_id')
+                
+                # Extract attacker information (final blow)
+                attackers = full_killmail.get('attackers', [])
+                final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
+                
+                attacker_character_id = final_blow_attacker.get('character_id')
+                attacker_corporation_id = final_blow_attacker.get('corporation_id')
+                attacker_alliance_id = final_blow_attacker.get('alliance_id')
+                attacker_faction_id = final_blow_attacker.get('faction_id')
+            else:
+                # Fallback to Zkillboard data (likely to be incomplete)
+                victim = killmail_data.get('victim', {})
+                victim_character_id = victim.get('character_id')
+                victim_corporation_id = victim.get('corporation_id')
+                victim_alliance_id = victim.get('alliance_id')
+                victim_faction_id = victim.get('faction_id')
+                victim_ship_type_id = victim.get('ship_type_id')
+                
+                # Extract attacker information (final blow)
+                attackers = killmail_data.get('attackers', [])
+                final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
+                
+                attacker_character_id = final_blow_attacker.get('character_id')
+                attacker_corporation_id = final_blow_attacker.get('corporation_id')
+                attacker_alliance_id = final_blow_attacker.get('alliance_id')
+                attacker_faction_id = final_blow_attacker.get('faction_id')
             
             # Create/update entity records
             self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
@@ -396,7 +422,8 @@ class KillmailProcessor:
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
-                Killmail.timestamp <= end_time
+                Killmail.timestamp <= end_time,
+                Killmail.attacker_character_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Player.character_id, Player.character_name
@@ -439,7 +466,8 @@ class KillmailProcessor:
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
-                Killmail.timestamp <= end_time
+                Killmail.timestamp <= end_time,
+                Killmail.attacker_corporation_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Corporation.corporation_id, Corporation.corporation_name, Corporation.ticker
@@ -485,7 +513,8 @@ class KillmailProcessor:
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
-                Killmail.timestamp <= end_time
+                Killmail.timestamp <= end_time,
+                Killmail.attacker_alliance_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Alliance.alliance_id, Alliance.alliance_name, Alliance.ticker
