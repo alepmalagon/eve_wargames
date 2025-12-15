@@ -6,7 +6,7 @@ from sqlalchemy import func, and_, or_
 from collections import defaultdict
 
 from ..models.killmail import (
-    KillmailRecord,
+    Killmail,
     Player,
     Corporation,
     Alliance,
@@ -92,7 +92,7 @@ class KillmailProcessor:
         killmail_data: Dict,
         system_id: int,
         db: Session
-    ) -> Optional[KillmailRecord]:
+    ) -> Optional[Killmail]:
         """
         Process a single killmail and store it in the database
         
@@ -102,7 +102,7 @@ class KillmailProcessor:
             db: Database session
             
         Returns:
-            Created KillmailRecord or None if skipped
+            Created Killmail or None if skipped
         """
         try:
             killmail_id = killmail_data.get('killmail_id')
@@ -113,7 +113,7 @@ class KillmailProcessor:
                 return None
             
             # Check if killmail already exists
-            existing = db.query(KillmailRecord).filter_by(killmail_id=killmail_id).first()
+            existing = db.query(Killmail).filter_by(killmail_id=killmail_id).first()
             if existing:
                 logger.debug(f"Killmail {killmail_id} already exists, skipping")
                 return existing
@@ -155,7 +155,7 @@ class KillmailProcessor:
             await self._ensure_alliance_exists(attacker_alliance_id, db)
             
             # Create killmail record
-            killmail_record = KillmailRecord(
+            killmail_record = Killmail(
                 killmail_id=killmail_id,
                 killmail_hash=killmail_hash,
                 system_id=system_id,
@@ -328,11 +328,11 @@ class KillmailProcessor:
         start_time = end_time - timedelta(hours=time_window_hours)
         
         # Query killmails in time window
-        killmails = db.query(KillmailRecord).filter(
+        killmails = db.query(Killmail).filter(
             and_(
-                KillmailRecord.system_id == system_id,
-                KillmailRecord.timestamp >= start_time,
-                KillmailRecord.timestamp <= end_time
+                Killmail.system_id == system_id,
+                Killmail.timestamp >= start_time,
+                Killmail.timestamp <= end_time
             )
         ).all()
         
@@ -408,20 +408,20 @@ class KillmailProcessor:
         player_stats = db.query(
             Player.character_id,
             Player.character_name,
-            func.count(KillmailRecord.killmail_id).label('kills'),
-            func.sum(KillmailRecord.total_value).label('isk_killed')
+            func.count(Killmail.killmail_id).label('kills'),
+            func.sum(Killmail.total_value).label('isk_killed')
         ).join(
-            KillmailRecord, Player.character_id == KillmailRecord.attacker_character_id
+            Killmail, Player.character_id == Killmail.attacker_character_id
         ).filter(
             and_(
-                KillmailRecord.system_id == system_id,
-                KillmailRecord.timestamp >= start_time,
-                KillmailRecord.timestamp <= end_time
+                Killmail.system_id == system_id,
+                Killmail.timestamp >= start_time,
+                Killmail.timestamp <= end_time
             )
         ).group_by(
             Player.character_id, Player.character_name
         ).order_by(
-            func.count(KillmailRecord.killmail_id).desc()
+            func.count(Killmail.killmail_id).desc()
         ).limit(limit).all()
         
         return [
@@ -450,21 +450,21 @@ class KillmailProcessor:
             Corporation.corporation_id,
             Corporation.corporation_name,
             Corporation.ticker,
-            func.count(KillmailRecord.killmail_id).label('kills'),
-            func.sum(KillmailRecord.total_value).label('isk_killed'),
-            func.count(func.distinct(KillmailRecord.attacker_character_id)).label('unique_players')
+            func.count(Killmail.killmail_id).label('kills'),
+            func.sum(Killmail.total_value).label('isk_killed'),
+            func.count(func.distinct(Killmail.attacker_character_id)).label('unique_players')
         ).join(
-            KillmailRecord, Corporation.corporation_id == KillmailRecord.attacker_corporation_id
+            Killmail, Corporation.corporation_id == Killmail.attacker_corporation_id
         ).filter(
             and_(
-                KillmailRecord.system_id == system_id,
-                KillmailRecord.timestamp >= start_time,
-                KillmailRecord.timestamp <= end_time
+                Killmail.system_id == system_id,
+                Killmail.timestamp >= start_time,
+                Killmail.timestamp <= end_time
             )
         ).group_by(
             Corporation.corporation_id, Corporation.corporation_name, Corporation.ticker
         ).order_by(
-            func.count(KillmailRecord.killmail_id).desc()
+            func.count(Killmail.killmail_id).desc()
         ).limit(limit).all()
         
         return [
@@ -495,22 +495,22 @@ class KillmailProcessor:
             Alliance.alliance_id,
             Alliance.alliance_name,
             Alliance.ticker,
-            func.count(KillmailRecord.killmail_id).label('kills'),
-            func.sum(KillmailRecord.total_value).label('isk_killed'),
-            func.count(func.distinct(KillmailRecord.attacker_character_id)).label('unique_players'),
-            func.count(func.distinct(KillmailRecord.attacker_corporation_id)).label('unique_corporations')
+            func.count(Killmail.killmail_id).label('kills'),
+            func.sum(Killmail.total_value).label('isk_killed'),
+            func.count(func.distinct(Killmail.attacker_character_id)).label('unique_players'),
+            func.count(func.distinct(Killmail.attacker_corporation_id)).label('unique_corporations')
         ).join(
-            KillmailRecord, Alliance.alliance_id == KillmailRecord.attacker_alliance_id
+            Killmail, Alliance.alliance_id == Killmail.attacker_alliance_id
         ).filter(
             and_(
-                KillmailRecord.system_id == system_id,
-                KillmailRecord.timestamp >= start_time,
-                KillmailRecord.timestamp <= end_time
+                Killmail.system_id == system_id,
+                Killmail.timestamp >= start_time,
+                Killmail.timestamp <= end_time
             )
         ).group_by(
             Alliance.alliance_id, Alliance.alliance_name, Alliance.ticker
         ).order_by(
-            func.count(KillmailRecord.killmail_id).desc()
+            func.count(Killmail.killmail_id).desc()
         ).limit(limit).all()
         
         return [

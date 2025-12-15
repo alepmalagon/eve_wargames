@@ -4,9 +4,9 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 
-class Kill(Base):
-    """Individual killmail record"""
-    __tablename__ = "kills"
+class Killmail(Base):
+    """Individual killmail record from Zkillboard"""
+    __tablename__ = "zkillboard_killmails"
     
     # Primary identifiers from Zkillboard
     killmail_id = Column(Integer, primary_key=True)

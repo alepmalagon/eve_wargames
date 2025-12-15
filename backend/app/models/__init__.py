@@ -9,7 +9,7 @@ from .faction import Faction
 from .kills import Kill, KillStatistic
 from .faction_warfare import FactionWarfareSnapshot
 from .killmail import (
-    Kill as KillmailRecord,
+    Killmail,
     Player,
     Corporation,
     Alliance,
@@ -26,7 +26,7 @@ __all__ = [
     "Kill",
     "KillStatistic",
     "FactionWarfareSnapshot",
-    "KillmailRecord",
+    "Killmail",
     "Player",
     "Corporation",
     "Alliance",
