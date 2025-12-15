@@ -8,6 +8,16 @@ from .system import System, SystemSnapshot
 from .faction import Faction
 from .kills import Kill, KillStatistic
 from .faction_warfare import FactionWarfareSnapshot
+from .killmail import (
+    Kill as KillmailRecord,
+    Player,
+    Corporation,
+    Alliance,
+    SystemKillStats,
+    PlayerKillStats,
+    CorporationKillStats,
+    AllianceKillStats
+)
 
 __all__ = [
     "System",
@@ -15,5 +25,13 @@ __all__ = [
     "Faction",
     "Kill",
     "KillStatistic",
-    "FactionWarfareSnapshot"
+    "FactionWarfareSnapshot",
+    "KillmailRecord",
+    "Player",
+    "Corporation",
+    "Alliance",
+    "SystemKillStats",
+    "PlayerKillStats",
+    "CorporationKillStats",
+    "AllianceKillStats"
 ]
