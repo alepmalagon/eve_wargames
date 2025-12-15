@@ -7,6 +7,7 @@ from collections import defaultdict
 
 from ..models.killmail import (
     Killmail,
+    KillmailAttacker,
     Player,
     Corporation,
     Alliance,
@@ -137,7 +138,7 @@ class KillmailProcessor:
             except Exception as e:
                 logger.warning(f"Could not fetch full killmail details for {killmail_id}: {e}")
             
-            # Extract victim information from full killmail data
+            # Extract victim and attacker information from full killmail data
             if full_killmail:
                 victim = full_killmail.get('victim', {})
                 victim_character_id = victim.get('character_id')
@@ -146,16 +147,19 @@ class KillmailProcessor:
                 victim_faction_id = victim.get('faction_id')
                 victim_ship_type_id = victim.get('ship_type_id')
                 
-                # Extract attacker information (final blow)
+                # Process ALL attackers, not just final blow
                 attackers = full_killmail.get('attackers', [])
-                final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
+                logger.info(f"Processing {len(attackers)} attackers for killmail {killmail_id}")
                 
+                # Find final blow attacker for main killmail record
+                final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
                 attacker_character_id = final_blow_attacker.get('character_id')
                 attacker_corporation_id = final_blow_attacker.get('corporation_id')
                 attacker_alliance_id = final_blow_attacker.get('alliance_id')
                 attacker_faction_id = final_blow_attacker.get('faction_id')
             else:
                 # Fallback to Zkillboard data (likely to be incomplete)
+                logger.warning(f"No ESI data for killmail {killmail_id}, using Zkillboard fallback")
                 victim = killmail_data.get('victim', {})
                 victim_character_id = victim.get('character_id')
                 victim_corporation_id = victim.get('corporation_id')
@@ -163,22 +167,34 @@ class KillmailProcessor:
                 victim_faction_id = victim.get('faction_id')
                 victim_ship_type_id = victim.get('ship_type_id')
                 
-                # Extract attacker information (final blow)
+                # Extract attacker information (final blow only from Zkillboard)
                 attackers = killmail_data.get('attackers', [])
                 final_blow_attacker = next((a for a in attackers if a.get('final_blow')), {})
-                
                 attacker_character_id = final_blow_attacker.get('character_id')
                 attacker_corporation_id = final_blow_attacker.get('corporation_id')
                 attacker_alliance_id = final_blow_attacker.get('alliance_id')
                 attacker_faction_id = final_blow_attacker.get('faction_id')
             
-            # Create/update entity records
+            # Create/update entity records for victim
             self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
-            self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
             self._ensure_corporation_exists(victim_corporation_id, victim_alliance_id, db)
-            self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
             self._ensure_alliance_exists(victim_alliance_id, db)
-            self._ensure_alliance_exists(attacker_alliance_id, db)
+            
+            # Create/update entity records for ALL attackers (if we have ESI data)
+            if full_killmail:
+                for attacker in attackers:
+                    att_char_id = attacker.get('character_id')
+                    att_corp_id = attacker.get('corporation_id')
+                    att_alliance_id = attacker.get('alliance_id')
+                    
+                    self._ensure_player_exists(att_char_id, att_corp_id, att_alliance_id, db)
+                    self._ensure_corporation_exists(att_corp_id, att_alliance_id, db)
+                    self._ensure_alliance_exists(att_alliance_id, db)
+            else:
+                # Fallback: only create entities for final blow attacker
+                self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
+                self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
+                self._ensure_alliance_exists(attacker_alliance_id, db)
             
             # Create killmail record
             killmail_record = Killmail(
@@ -200,6 +216,28 @@ class KillmailProcessor:
             )
             
             db.add(killmail_record)
+            db.flush()  # Flush to get the killmail_id for foreign key references
+            
+            # Create individual attacker records for all attackers (if we have ESI data)
+            if full_killmail:
+                attackers = full_killmail.get('attackers', [])
+                for attacker in attackers:
+                    attacker_record = KillmailAttacker(
+                        killmail_id=killmail_id,
+                        character_id=attacker.get('character_id'),
+                        corporation_id=attacker.get('corporation_id'),
+                        alliance_id=attacker.get('alliance_id'),
+                        faction_id=attacker.get('faction_id'),
+                        damage_done=attacker.get('damage_done', 0),
+                        final_blow=attacker.get('final_blow', False),
+                        security_status=attacker.get('security_status'),
+                        ship_type_id=attacker.get('ship_type_id'),
+                        weapon_type_id=attacker.get('weapon_type_id')
+                    )
+                    db.add(attacker_record)
+                
+                logger.info(f"Created {len(attackers)} attacker records for killmail {killmail_id}")
+            
             db.commit()
             
             logger.debug(f"Stored killmail {killmail_id} for system {system_id}")
@@ -410,25 +448,27 @@ class KillmailProcessor:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=time_window_hours)
         
-        # Query player activity
+        # Query player activity using attacker records (counts all attackers, not just final blow)
         player_stats = db.query(
             Player.character_id,
             Player.character_name,
-            func.count(Killmail.killmail_id).label('kills'),
+            func.count(KillmailAttacker.id).label('kills'),
             func.sum(Killmail.total_value).label('isk_killed')
         ).join(
-            Killmail, Player.character_id == Killmail.attacker_character_id
+            KillmailAttacker, Player.character_id == KillmailAttacker.character_id
+        ).join(
+            Killmail, KillmailAttacker.killmail_id == Killmail.killmail_id
         ).filter(
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
                 Killmail.timestamp <= end_time,
-                Killmail.attacker_character_id.isnot(None)  # Filter out NULL attackers
+                KillmailAttacker.character_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Player.character_id, Player.character_name
         ).order_by(
-            func.count(Killmail.killmail_id).desc()
+            func.count(KillmailAttacker.id).desc()
         ).limit(limit).all()
         
         return [
@@ -452,27 +492,29 @@ class KillmailProcessor:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=time_window_hours)
         
-        # Query corporation activity
+        # Query corporation activity using attacker records (counts all attackers, not just final blow)
         corp_stats = db.query(
             Corporation.corporation_id,
             Corporation.corporation_name,
             Corporation.ticker,
-            func.count(Killmail.killmail_id).label('kills'),
+            func.count(KillmailAttacker.id).label('kills'),
             func.sum(Killmail.total_value).label('isk_killed'),
-            func.count(func.distinct(Killmail.attacker_character_id)).label('unique_players')
+            func.count(func.distinct(KillmailAttacker.character_id)).label('unique_players')
         ).join(
-            Killmail, Corporation.corporation_id == Killmail.attacker_corporation_id
+            KillmailAttacker, Corporation.corporation_id == KillmailAttacker.corporation_id
+        ).join(
+            Killmail, KillmailAttacker.killmail_id == Killmail.killmail_id
         ).filter(
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
                 Killmail.timestamp <= end_time,
-                Killmail.attacker_corporation_id.isnot(None)  # Filter out NULL attackers
+                KillmailAttacker.corporation_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Corporation.corporation_id, Corporation.corporation_name, Corporation.ticker
         ).order_by(
-            func.count(Killmail.killmail_id).desc()
+            func.count(KillmailAttacker.id).desc()
         ).limit(limit).all()
         
         return [
@@ -498,28 +540,30 @@ class KillmailProcessor:
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=time_window_hours)
         
-        # Query alliance activity
+        # Query alliance activity using attacker records (counts all attackers, not just final blow)
         alliance_stats = db.query(
             Alliance.alliance_id,
             Alliance.alliance_name,
             Alliance.ticker,
-            func.count(Killmail.killmail_id).label('kills'),
+            func.count(KillmailAttacker.id).label('kills'),
             func.sum(Killmail.total_value).label('isk_killed'),
-            func.count(func.distinct(Killmail.attacker_character_id)).label('unique_players'),
-            func.count(func.distinct(Killmail.attacker_corporation_id)).label('unique_corporations')
+            func.count(func.distinct(KillmailAttacker.character_id)).label('unique_players'),
+            func.count(func.distinct(KillmailAttacker.corporation_id)).label('unique_corporations')
         ).join(
-            Killmail, Alliance.alliance_id == Killmail.attacker_alliance_id
+            KillmailAttacker, Alliance.alliance_id == KillmailAttacker.alliance_id
+        ).join(
+            Killmail, KillmailAttacker.killmail_id == Killmail.killmail_id
         ).filter(
             and_(
                 Killmail.system_id == system_id,
                 Killmail.timestamp >= start_time,
                 Killmail.timestamp <= end_time,
-                Killmail.attacker_alliance_id.isnot(None)  # Filter out NULL attackers
+                KillmailAttacker.alliance_id.isnot(None)  # Filter out NULL attackers
             )
         ).group_by(
             Alliance.alliance_id, Alliance.alliance_name, Alliance.ticker
         ).order_by(
-            func.count(Killmail.killmail_id).desc()
+            func.count(KillmailAttacker.id).desc()
         ).limit(limit).all()
         
         return [

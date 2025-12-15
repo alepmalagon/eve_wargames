@@ -102,6 +102,45 @@ class Alliance(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 
+class KillmailAttacker(Base):
+    """Individual attacker record for each killmail"""
+    __tablename__ = "killmail_attackers"
+    
+    id = Column(Integer, primary_key=True)
+    killmail_id = Column(Integer, ForeignKey("zkillboard_killmails.killmail_id"), nullable=False)
+    
+    # Attacker information
+    character_id = Column(Integer, ForeignKey("players.character_id"))
+    corporation_id = Column(Integer, ForeignKey("corporations.corporation_id"))
+    alliance_id = Column(Integer, ForeignKey("alliances.alliance_id"))
+    faction_id = Column(Integer)  # 500002 (Minmatar) or 500003 (Amarr)
+    
+    # Combat details
+    damage_done = Column(Integer, default=0)
+    final_blow = Column(Boolean, default=False)
+    security_status = Column(Float)
+    ship_type_id = Column(Integer)
+    weapon_type_id = Column(Integer)
+    
+    # Metadata
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    killmail = relationship("Killmail", backref="all_attackers")
+    character = relationship("Player", foreign_keys=[character_id])
+    corporation = relationship("Corporation", foreign_keys=[corporation_id])
+    alliance = relationship("Alliance", foreign_keys=[alliance_id])
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_attackers_killmail', 'killmail_id'),
+        Index('idx_attackers_character', 'character_id'),
+        Index('idx_attackers_corporation', 'corporation_id'),
+        Index('idx_attackers_alliance', 'alliance_id'),
+        Index('idx_attackers_faction', 'faction_id'),
+    )
+
+
 class SystemKillStats(Base):
     """Aggregated kill statistics per system"""
     __tablename__ = "system_kill_stats"
