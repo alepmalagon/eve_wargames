@@ -396,9 +396,9 @@ class KillmailProcessor:
     async def get_top_players(
         self,
         system_id: int,
+        db: Session,
         limit: int = 10,
-        time_window_hours: int = 24,
-        db: Session
+        time_window_hours: int = 24
     ) -> List[Dict]:
         """Get most active players in a system"""
         end_time = datetime.utcnow()
@@ -437,9 +437,9 @@ class KillmailProcessor:
     async def get_top_corporations(
         self,
         system_id: int,
+        db: Session,
         limit: int = 10,
-        time_window_hours: int = 24,
-        db: Session
+        time_window_hours: int = 24
     ) -> List[Dict]:
         """Get most active corporations in a system"""
         end_time = datetime.utcnow()
@@ -482,9 +482,9 @@ class KillmailProcessor:
     async def get_top_alliances(
         self,
         system_id: int,
+        db: Session,
         limit: int = 10,
-        time_window_hours: int = 24,
-        db: Session
+        time_window_hours: int = 24
     ) -> List[Dict]:
         """Get most active alliances in a system"""
         end_time = datetime.utcnow()
