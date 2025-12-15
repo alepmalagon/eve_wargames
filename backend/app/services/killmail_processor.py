@@ -147,12 +147,12 @@ class KillmailProcessor:
             attacker_faction_id = final_blow_attacker.get('faction_id')
             
             # Create/update entity records
-            await self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
-            await self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
-            await self._ensure_corporation_exists(victim_corporation_id, victim_alliance_id, db)
-            await self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
-            await self._ensure_alliance_exists(victim_alliance_id, db)
-            await self._ensure_alliance_exists(attacker_alliance_id, db)
+            self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
+            self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
+            self._ensure_corporation_exists(victim_corporation_id, victim_alliance_id, db)
+            self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
+            self._ensure_alliance_exists(victim_alliance_id, db)
+            self._ensure_alliance_exists(attacker_alliance_id, db)
             
             # Create killmail record
             killmail_record = Killmail(
@@ -184,7 +184,7 @@ class KillmailProcessor:
             db.rollback()
             return None
     
-    async def _ensure_player_exists(
+    def _ensure_player_exists(
         self,
         character_id: Optional[int],
         corporation_id: Optional[int],
@@ -204,14 +204,8 @@ class KillmailProcessor:
                 db.commit()
             return player
         
-        # Get character name from ESI
-        character_name = f"Character_{character_id}"  # Default fallback
-        try:
-            character_info = await self.esi_client.get_character_info(character_id)
-            if character_info:
-                character_name = character_info.get('name', character_name)
-        except Exception as e:
-            logger.warning(f"Could not fetch character name for {character_id}: {e}")
+        # Use character ID as fallback name for now (ESI calls can be added later via background job)
+        character_name = f"Character_{character_id}"
         
         # Create new player record
         player = Player(
@@ -226,7 +220,7 @@ class KillmailProcessor:
         logger.debug(f"Created player record: {character_name} ({character_id})")
         return player
     
-    async def _ensure_corporation_exists(
+    def _ensure_corporation_exists(
         self,
         corporation_id: Optional[int],
         alliance_id: Optional[int],
@@ -244,16 +238,9 @@ class KillmailProcessor:
                 db.commit()
             return corporation
         
-        # Get corporation info from ESI
-        corporation_name = f"Corporation_{corporation_id}"  # Default fallback
-        ticker = ""
-        try:
-            corp_info = await self.esi_client.get_corporation_info(corporation_id)
-            if corp_info:
-                corporation_name = corp_info.get('name', corporation_name)
-                ticker = corp_info.get('ticker', '')
-        except Exception as e:
-            logger.warning(f"Could not fetch corporation info for {corporation_id}: {e}")
+        # Use corporation ID as fallback name for now (ESI calls can be added later via background job)
+        corporation_name = f"Corporation_{corporation_id}"
+        ticker = f"C{corporation_id}"
         
         # Create new corporation record
         corporation = Corporation(
@@ -268,7 +255,7 @@ class KillmailProcessor:
         logger.debug(f"Created corporation record: {corporation_name} ({corporation_id})")
         return corporation
     
-    async def _ensure_alliance_exists(
+    def _ensure_alliance_exists(
         self,
         alliance_id: Optional[int],
         db: Session
@@ -281,16 +268,9 @@ class KillmailProcessor:
         if alliance:
             return alliance
         
-        # Get alliance info from ESI
-        alliance_name = f"Alliance_{alliance_id}"  # Default fallback
-        ticker = ""
-        try:
-            alliance_info = await self.esi_client.get_alliance_info(alliance_id)
-            if alliance_info:
-                alliance_name = alliance_info.get('name', alliance_name)
-                ticker = alliance_info.get('ticker', '')
-        except Exception as e:
-            logger.warning(f"Could not fetch alliance info for {alliance_id}: {e}")
+        # Use alliance ID as fallback name for now (ESI calls can be added later via background job)
+        alliance_name = f"Alliance_{alliance_id}"
+        ticker = f"A{alliance_id}"
         
         # Create new alliance record
         alliance = Alliance(
