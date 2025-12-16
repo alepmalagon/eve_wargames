@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { systemsApi } from '../services/api'
-import { ChevronUp, ChevronDown, Filter, Search, AlertTriangle, Shield } from 'lucide-react'
+import { ChevronUp, ChevronDown, Filter, Search, AlertTriangle, Shield, Table, Map } from 'lucide-react'
+import { MapView } from './MapView'
+import { SystemSidebar } from './SystemSidebar'
 
 interface System {
   system_id: number
@@ -29,6 +31,8 @@ export const SystemsView: React.FC = () => {
   const [contestedFilter, setContestedFilter] = useState<boolean | null>(null)
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [activeTab, setActiveTab] = useState<'table' | 'map'>('table')
+  const [selectedSystemId, setSelectedSystemId] = useState<number | null>(null)
 
   // Faction constants
   const MINMATAR_FACTION_ID = 500002
@@ -117,6 +121,16 @@ export const SystemsView: React.FC = () => {
       return 0
     })
 
+  const handleSystemSelect = (systemId: number) => {
+    setSelectedSystemId(systemId)
+  }
+
+  const handleCloseSidebar = () => {
+    setSelectedSystemId(null)
+  }
+
+  const selectedSystem = selectedSystemId ? systems.find(s => s.system_id === selectedSystemId) : null
+
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp className="w-4 h-4 opacity-30" />
     return sortDirection === 'asc' ? 
@@ -179,9 +193,36 @@ export const SystemsView: React.FC = () => {
         </p>
       </div>
 
-      {/* Filters and Search */}
+      {/* Tab Navigation */}
       <div className="card">
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+        <div className="flex border-b border-gray-700 mb-6">
+          <button
+            onClick={() => setActiveTab('table')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'table'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <Table className="w-4 h-4" />
+            Table View
+          </button>
+          <button
+            onClick={() => setActiveTab('map')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'map'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <Map className="w-4 h-4" />
+            Map View
+          </button>
+        </div>
+
+        {/* Filters and Search - only show for table view */}
+        {activeTab === 'table' && (
+          <div className="flex flex-col lg:flex-row gap-4 mb-6">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
@@ -254,8 +295,12 @@ export const SystemsView: React.FC = () => {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Systems Table */}
+        {/* Content based on active tab */}
+        {activeTab === 'table' ? (
+          <>
+            {/* Systems Table */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -380,9 +425,26 @@ export const SystemsView: React.FC = () => {
           </div>
         )}
 
-        <div className="mt-4 text-sm text-gray-400">
-          Showing {filteredAndSortedSystems.length} of {systems.length} systems
-        </div>
+            <div className="mt-4 text-sm text-gray-400">
+              Showing {filteredAndSortedSystems.length} of {systems.length} systems
+            </div>
+          </>
+        ) : (
+          /* Map View */
+          <div className="flex">
+            <div className="flex-1">
+              <MapView
+                systems={systems}
+                selectedSystemId={selectedSystemId}
+                onSystemSelect={handleSystemSelect}
+              />
+            </div>
+            <SystemSidebar
+              selectedSystem={selectedSystem}
+              onClose={handleCloseSidebar}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

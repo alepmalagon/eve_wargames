@@ -1,0 +1,147 @@
+/* Warzone Map Styles */
+.warzone-map-container {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.warzone-map-svg {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.warzone-map-svg:active {
+  cursor: grabbing;
+}
+
+/* System styles based on faction */
+.system-minmatar .system-fill {
+  fill: #dc2626;
+  fill-opacity: 0.7;
+}
+
+.system-amarr .system-fill {
+  fill: #eab308;
+  fill-opacity: 0.7;
+}
+
+.system-minmatar .system-border {
+  stroke: #dc2626;
+  stroke-width: 2;
+  fill: none;
+}
+
+.system-amarr .system-border {
+  stroke: #eab308;
+  stroke-width: 2;
+  fill: none;
+}
+
+/* System status styles */
+.system-backline .system-fill {
+  fill-opacity: 0.5;
+}
+
+.system-frontline .system-fill {
+  fill-opacity: 0.8;
+}
+
+.system-secondline .system-fill {
+  fill-opacity: 0.6;
+}
+
+/* Interactive states */
+.system-group {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.system-group:hover .system-fill {
+  fill-opacity: 1;
+  filter: brightness(1.2);
+}
+
+.system-group.selected .system-fill {
+  fill-opacity: 1;
+  filter: brightness(1.3);
+}
+
+.system-group.selected .system-border {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+/* Contested systems */
+.system-contested .system-border {
+  stroke-dasharray: 5,5;
+  animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Map controls */
+.map-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.map-control-btn {
+  background: rgba(31, 41, 55, 0.9);
+  border: 1px solid #374151;
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.map-control-btn:hover {
+  background: rgba(55, 65, 81, 0.9);
+}
+
+/* Legend */
+.map-legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(31, 41, 55, 0.9);
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 12px;
+  color: white;
+  font-size: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.legend-minmatar {
+  background: #dc2626;
+}
+
+.legend-amarr {
+  background: #eab308;
+}
