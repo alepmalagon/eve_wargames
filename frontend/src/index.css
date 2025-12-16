@@ -13,6 +13,31 @@
     @apply bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700;
   }
   
+  /* Faction colors */
+  .text-minmatar-red {
+    color: #dc2626;
+  }
+  
+  .text-amarr-yellow {
+    color: #eab308;
+  }
+  
+  .bg-minmatar-red {
+    background-color: #dc2626;
+  }
+  
+  .bg-amarr-yellow {
+    background-color: #eab308;
+  }
+  
+  .border-minmatar-red {
+    border-color: #dc2626;
+  }
+  
+  .border-amarr-yellow {
+    border-color: #eab308;
+  }
+  
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
   }
