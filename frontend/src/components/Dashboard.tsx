@@ -211,32 +211,48 @@ export const Dashboard: React.FC = () => {
           Warzone Control Distribution
         </h3>
         <div className="space-y-4">
+          {/* Combined Progress Bar */}
           <div>
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-red-400">Minmatar Republic</span>
-              <span className="text-white">
-                {overview.minmatar.control_percentage.toFixed(1)}%
+              <div className="flex items-center space-x-4">
+                <span className="text-red-400">
+                  Minmatar: {overview.minmatar.control_percentage.toFixed(1)}%
+                </span>
+                <span className="text-yellow-400">
+                  Amarr: {overview.amarr.control_percentage.toFixed(1)}%
+                </span>
+              </div>
+              <span className="text-gray-400 text-xs">
+                {overview.warzone.total_systems} systems total
               </span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-3">
-              <div
-                className="bg-red-500 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${overview.minmatar.control_percentage}%` }}
-              />
+            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+              <div className="flex h-full">
+                <div
+                  className="bg-red-500 transition-all duration-500 flex items-center justify-center"
+                  style={{ width: `${overview.minmatar.control_percentage}%` }}
+                >
+                  {overview.minmatar.control_percentage > 15 && (
+                    <span className="text-white text-xs font-medium">
+                      {overview.minmatar.systems_controlled}
+                    </span>
+                  )}
+                </div>
+                <div
+                  className="bg-yellow-500 transition-all duration-500 flex items-center justify-center"
+                  style={{ width: `${overview.amarr.control_percentage}%` }}
+                >
+                  {overview.amarr.control_percentage > 15 && (
+                    <span className="text-black text-xs font-medium">
+                      {overview.amarr.systems_controlled}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-yellow-400">Amarr Empire</span>
-              <span className="text-white">
-                {overview.amarr.control_percentage.toFixed(1)}%
-              </span>
-            </div>
-            <div className="w-full bg-gray-700 rounded-full h-3">
-              <div
-                className="bg-yellow-500 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${overview.amarr.control_percentage}%` }}
-              />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>Minmatar: {overview.minmatar.systems_controlled} systems</span>
+              <span>Amarr: {overview.amarr.systems_controlled} systems</span>
             </div>
           </div>
         </div>
