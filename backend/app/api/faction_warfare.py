@@ -13,8 +13,10 @@ from sqlalchemy import desc
 from ..database import get_db
 from ..models.faction_warfare import FactionWarfareSnapshot
 from ..services.esi_client import esi_client
+from ..logging_config import get_app_logger
 
 router = APIRouter()
+logger = get_app_logger(__name__)
 
 
 @router.get("/overview")
@@ -25,18 +27,25 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
     Returns:
         Latest warzone statistics including system control and kill data
     """
+    logger.info("Fetching faction warfare overview")
+    
     # Get the latest snapshot from database
+    logger.debug("Querying database for latest faction warfare snapshot")
     latest_snapshot = db.query(FactionWarfareSnapshot).order_by(
         desc(FactionWarfareSnapshot.timestamp)
     ).first()
     
     if not latest_snapshot:
         # If no database data exists, fall back to live ESI data
+        logger.warning("No faction warfare snapshot found in database, falling back to live ESI data")
         try:
+            logger.debug("Connecting to ESI client for live data")
             async with esi_client as client:
                 fw_systems = await client.get_faction_warfare_systems()
+                logger.debug(f"Retrieved {len(fw_systems) if fw_systems else 0} faction warfare systems from ESI")
                 
                 if not fw_systems:
+                    logger.error("No faction warfare data available from database or ESI")
                     raise HTTPException(status_code=503, detail="No faction warfare data available from database or ESI")
                 
                 # Filter for Minmatar/Amarr warzone systems
@@ -67,6 +76,7 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
                 
                 total_systems = len(warzone_systems)
                 
+                logger.info(f"Returning live ESI data: {total_systems} systems, {minmatar_controlled} Minmatar, {amarr_controlled} Amarr, {contested} contested")
                 return {
                     "timestamp": datetime.utcnow(),
                     "source": "live_esi_fallback",
@@ -105,9 +115,11 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
                 }
                 
         except Exception as e:
+            logger.error(f"Error fetching faction warfare data from ESI: {str(e)}", exc_info=True)
             raise HTTPException(status_code=503, detail=f"Error fetching faction warfare data: {str(e)}")
     
     # Get previous snapshot for trend calculation
+    logger.debug("Querying for previous snapshot to calculate trends")
     previous_snapshot = db.query(FactionWarfareSnapshot).filter(
         FactionWarfareSnapshot.timestamp < latest_snapshot.timestamp
     ).order_by(desc(FactionWarfareSnapshot.timestamp)).first()
@@ -115,13 +127,17 @@ async def get_faction_warfare_overview(db: Session = Depends(get_db)):
     # Calculate trends if previous data exists
     trends = {}
     if previous_snapshot:
+        logger.debug("Calculating trends from previous snapshot")
         trends = {
             "minmatar_systems_change": latest_snapshot.minmatar_systems_controlled - previous_snapshot.minmatar_systems_controlled,
             "amarr_systems_change": latest_snapshot.amarr_systems_controlled - previous_snapshot.amarr_systems_controlled,
             "contested_systems_change": latest_snapshot.total_contested_systems - previous_snapshot.total_contested_systems,
             "time_period_hours": (latest_snapshot.timestamp - previous_snapshot.timestamp).total_seconds() / 3600
         }
+    else:
+        logger.debug("No previous snapshot found, trends will be empty")
     
+    logger.info(f"Returning database snapshot from {latest_snapshot.timestamp}")
     return {
         "timestamp": latest_snapshot.timestamp,
         "source": "database",
@@ -175,13 +191,17 @@ async def get_faction_warfare_trends(
     Returns:
         Time series data for faction warfare metrics
     """
+    logger.info(f"Fetching faction warfare trends for last {hours} hours")
     start_time = datetime.utcnow() - timedelta(hours=hours)
     
     snapshots = db.query(FactionWarfareSnapshot).filter(
         FactionWarfareSnapshot.timestamp >= start_time
     ).order_by(FactionWarfareSnapshot.timestamp).all()
     
+    logger.debug(f"Found {len(snapshots)} snapshots for trend analysis")
+    
     if not snapshots:
+        logger.warning(f"No trend data available for the last {hours} hours")
         raise HTTPException(status_code=404, detail="No trend data available for the specified period")
     
     return {
@@ -223,13 +243,18 @@ async def get_live_faction_warfare_data():
     Returns:
         Real-time faction warfare data from EVE Online
     """
+    logger.info("Fetching live faction warfare data from ESI")
     try:
+        logger.debug("Connecting to ESI client for live data")
         async with esi_client as client:
             # Fetch live data from ESI
+            logger.debug("Fetching live faction warfare systems")
             fw_systems = await client.get_faction_warfare_systems()
+            logger.debug("Fetching live faction warfare stats")
             fw_stats = await client.get_faction_warfare_stats()
             
             if not fw_systems:
+                logger.error("Unable to fetch live faction warfare systems from ESI")
                 raise HTTPException(status_code=503, detail="Unable to fetch live data from ESI")
             
             # Filter for Minmatar/Amarr warzone systems
@@ -260,6 +285,7 @@ async def get_live_faction_warfare_data():
             
             total_systems = len(warzone_systems)
             
+            logger.info(f"Returning live ESI data: {total_systems} systems, {minmatar_controlled} Minmatar, {amarr_controlled} Amarr, {contested} contested")
             return {
                 "timestamp": datetime.utcnow(),
                 "source": "live_esi",
@@ -277,6 +303,7 @@ async def get_live_faction_warfare_data():
             }
             
     except Exception as e:
+        logger.error(f"Error fetching live faction warfare data: {str(e)}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Error fetching live data: {str(e)}")
 
 
@@ -288,19 +315,24 @@ async def get_faction_warfare_leaderboards():
     Returns:
         Faction warfare leaderboard data
     """
+    logger.info("Fetching faction warfare leaderboards")
     try:
+        logger.debug("Connecting to ESI client for leaderboards")
         async with esi_client as client:
             leaderboards = await client.get_faction_warfare_leaderboards()
             
             if not leaderboards:
+                logger.error("Unable to fetch leaderboard data from ESI")
                 raise HTTPException(status_code=503, detail="Unable to fetch leaderboard data from ESI")
             
+            logger.info("Successfully fetched faction warfare leaderboards")
             return {
                 "timestamp": datetime.utcnow(),
                 "leaderboards": leaderboards
             }
             
     except Exception as e:
+        logger.error(f"Error fetching leaderboard data: {str(e)}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"Error fetching leaderboard data: {str(e)}")
 
 
@@ -315,12 +347,14 @@ async def trigger_data_collection():
     Returns:
         Task result information
     """
+    logger.info("Triggering faction warfare data collection task")
     try:
         from ..tasks.data_collection import collect_faction_warfare_data
         
         # Trigger the task
         result = collect_faction_warfare_data.delay()
         
+        logger.info(f"Data collection task has been queued with ID: {result.id}")
         return {
             "status": "triggered",
             "task_id": result.id,
@@ -328,6 +362,7 @@ async def trigger_data_collection():
         }
         
     except Exception as e:
+        logger.error(f"Failed to trigger data collection task: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to trigger data collection: {str(e)}")
 
 
@@ -342,33 +377,44 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
     Returns:
         Collection result information
     """
+    logger.info("Starting immediate faction warfare data collection")
     try:
         from ..services.data_processor import DataProcessor
         
         # Collect and process data
+        logger.debug("Connecting to ESI client for data collection")
         async with esi_client as client:
             # Initialize data processor with ESI client
+            logger.debug("Initializing data processor")
             data_processor = DataProcessor(db, client)
             
             # Ensure factions exist
+            logger.debug("Ensuring factions exist in database")
             data_processor._ensure_factions_exist()
             
             # Get faction warfare systems from ESI
+            logger.debug("Fetching faction warfare systems from ESI")
             fw_systems = await client.get_faction_warfare_systems()
             
             if not fw_systems:
+                logger.error("Failed to fetch faction warfare systems from ESI")
                 raise HTTPException(status_code=503, detail="Failed to fetch faction warfare systems from ESI")
             
+            logger.debug(f"Retrieved {len(fw_systems)} faction warfare systems")
+            
             # Get warzone data for advantage information
+            logger.debug("Fetching warzone data for advantage information")
             warzone_data = await client.get_warzone_data()
             
             if not warzone_data:
                 logger.warning("Failed to fetch warzone data - advantage percentages will be 0")
             
             # Get faction warfare stats
+            logger.debug("Fetching faction warfare stats")
             fw_stats = await client.get_faction_warfare_stats()
             
             # Process all data together
+            logger.debug("Processing faction warfare data")
             result = await data_processor.process_faction_warfare_data(
                 fw_systems=fw_systems,
                 fw_stats=fw_stats,
@@ -376,7 +422,14 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
             )
             
             # Commit changes
+            logger.debug("Committing database changes")
             db.commit()
+            
+            logger.info(
+                f"Data collection completed successfully: "
+                f"{result.get('systems_processed', 0)} systems processed, "
+                f"{result.get('snapshots_created', 0)} snapshots created"
+            )
             
             return {
                 "status": "completed",
@@ -388,6 +441,7 @@ async def collect_data_immediately(db: Session = Depends(get_db)):
             }
             
     except Exception as e:
+        logger.error(f"Failed to collect faction warfare data: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to collect data: {str(e)}")
 
@@ -409,28 +463,34 @@ async def collect_killmails_immediately(
     Returns:
         Collection result information including processing statistics
     """
+    logger.info(f"Starting killmail collection for system {system_id}")
     try:
         from ..services.zkillboard_client import ZkillboardClient
         from ..services.killmail_processor import KillmailProcessor
         from ..models.system import System
         
         # Verify system exists and is a faction warfare system
+        logger.debug(f"Verifying system {system_id} exists in database")
         system = db.query(System).filter(System.system_id == system_id).first()
         if not system:
+            logger.error(f"System {system_id} not found in faction warfare systems")
             raise HTTPException(
                 status_code=404, 
                 detail=f"System {system_id} not found in faction warfare systems"
             )
         
         # Initialize clients
+        logger.debug("Initializing Zkillboard client and killmail processor")
         zkillboard_client = ZkillboardClient()
         killmail_processor = KillmailProcessor()
         
         async with zkillboard_client:
             # Fetch killmails for the system (last 24 hours by default)
+            logger.debug(f"Fetching killmails for system {system_id} ({system.name})")
             killmails = await zkillboard_client.get_system_all_activity(system_id)
             
             if not killmails:
+                logger.info(f"No killmails found for system {system_id} ({system.name})")
                 return {
                     "status": "completed",
                     "message": f"No killmails found for system {system_id} ({system.name})",
@@ -441,6 +501,8 @@ async def collect_killmails_immediately(
                     "killmails_skipped": 0
                 }
             
+            logger.debug(f"Retrieved {len(killmails)} killmails, processing...")
+            
             # Process killmails
             result = await killmail_processor.process_system_killmails(
                 system_id=system_id,
@@ -449,7 +511,14 @@ async def collect_killmails_immediately(
             )
             
             # Commit changes
+            logger.debug("Committing killmail data to database")
             db.commit()
+            
+            logger.info(
+                f"Killmail collection completed for system {system_id} ({system.name}): "
+                f"{len(killmails)} processed, {result.get('stored', 0)} stored, "
+                f"{result.get('skipped', 0)} skipped, {result.get('errors', 0)} errors"
+            )
             
             return {
                 "status": "completed",
@@ -466,5 +535,6 @@ async def collect_killmails_immediately(
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
+        logger.error(f"Failed to collect killmails for system {system_id}: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to collect killmails: {str(e)}")
