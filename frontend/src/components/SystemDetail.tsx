@@ -14,6 +14,7 @@ import {
   Building,
   Crown
 } from 'lucide-react'
+import { PlayerCard, CorporationCard, AllianceCard, EntityList } from './EntityCards'
 import { 
   LineChart, 
   Line, 
@@ -540,97 +541,65 @@ export const SystemDetail: React.FC = () => {
       {killmailStats && (
         <div className="card">
           <h2 className="text-xl font-semibold text-white mb-6">Most Active Killers (Last {killmailStats.time_window_hours}h)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Most Active Player */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Users className="w-6 h-6 text-blue-500" />
-                <h3 className="text-lg font-semibold text-white">Top Player</h3>
-              </div>
-              {killmailStats.most_active.player ? (
-                <div>
-                  <p className="text-white font-medium text-lg">{killmailStats.most_active.player.character_name}</p>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Kills:</span>
-                      <span className="text-red-400 font-medium">{killmailStats.most_active.player.kills}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">ISK Killed:</span>
-                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.player.isk_killed)} ISK</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-400">No player data available</p>
-              )}
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Top Players */}
+            <EntityList
+              title="Top Players"
+              icon={<Users className="w-6 h-6 text-blue-500" />}
+              emptyMessage="No player data available"
+            >
+              {killmailStats.top_performers.players.slice(0, 10).map((player, index) => (
+                <PlayerCard
+                  key={player.character_id}
+                  rank={index + 1}
+                  characterId={player.character_id}
+                  characterName={player.character_name}
+                  kills={player.kills}
+                  iskKilled={player.isk_killed}
+                />
+              ))}
+            </EntityList>
 
-            {/* Most Active Corporation */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Building className="w-6 h-6 text-purple-500" />
-                <h3 className="text-lg font-semibold text-white">Top Corporation</h3>
-              </div>
-              {killmailStats.most_active.corporation ? (
-                <div>
-                  <p className="text-white font-medium text-lg">
-                    [{killmailStats.most_active.corporation.ticker}] {killmailStats.most_active.corporation.corporation_name}
-                  </p>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Kills:</span>
-                      <span className="text-red-400 font-medium">{killmailStats.most_active.corporation.kills}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">ISK Killed:</span>
-                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.corporation.isk_killed)} ISK</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Active Players:</span>
-                      <span className="text-blue-400 font-medium">{killmailStats.most_active.corporation.unique_players}</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-400">No corporation data available</p>
-              )}
-            </div>
+            {/* Top Corporations */}
+            <EntityList
+              title="Top Corporations"
+              icon={<Building className="w-6 h-6 text-purple-500" />}
+              emptyMessage="No corporation data available"
+            >
+              {killmailStats.top_performers.corporations.slice(0, 10).map((corp, index) => (
+                <CorporationCard
+                  key={corp.corporation_id}
+                  rank={index + 1}
+                  corporationId={corp.corporation_id}
+                  corporationName={corp.corporation_name}
+                  ticker={corp.ticker}
+                  kills={corp.kills}
+                  iskKilled={corp.isk_killed}
+                  uniquePlayers={corp.unique_players}
+                />
+              ))}
+            </EntityList>
 
-            {/* Most Active Alliance */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Crown className="w-6 h-6 text-yellow-500" />
-                <h3 className="text-lg font-semibold text-white">Top Alliance</h3>
-              </div>
-              {killmailStats.most_active.alliance ? (
-                <div>
-                  <p className="text-white font-medium text-lg">
-                    &lt;{killmailStats.most_active.alliance.ticker}&gt; {killmailStats.most_active.alliance.alliance_name}
-                  </p>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Kills:</span>
-                      <span className="text-red-400 font-medium">{killmailStats.most_active.alliance.kills}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">ISK Killed:</span>
-                      <span className="text-green-400 font-medium">{formatISK(killmailStats.most_active.alliance.isk_killed)} ISK</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Active Players:</span>
-                      <span className="text-blue-400 font-medium">{killmailStats.most_active.alliance.unique_players}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Active Corps:</span>
-                      <span className="text-purple-400 font-medium">{killmailStats.most_active.alliance.unique_corporations}</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-400">No alliance data available</p>
-              )}
-            </div>
+            {/* Top Alliances */}
+            <EntityList
+              title="Top Alliances"
+              icon={<Crown className="w-6 h-6 text-yellow-500" />}
+              emptyMessage="No alliance data available"
+            >
+              {killmailStats.top_performers.alliances.slice(0, 10).map((alliance, index) => (
+                <AllianceCard
+                  key={alliance.alliance_id}
+                  rank={index + 1}
+                  allianceId={alliance.alliance_id}
+                  allianceName={alliance.alliance_name}
+                  ticker={alliance.ticker}
+                  kills={alliance.kills}
+                  iskKilled={alliance.isk_killed}
+                  uniquePlayers={alliance.unique_players}
+                  uniqueCorporations={alliance.unique_corporations}
+                />
+              ))}
+            </EntityList>
           </div>
           <div className="mt-4 text-center">
             <p className="text-gray-400 text-sm">
