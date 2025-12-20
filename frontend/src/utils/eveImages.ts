@@ -62,22 +62,24 @@ export const getFallbackImageUrl = (type: 'character' | 'corporation' | 'allianc
     alliance: '#eab308' // yellow
   }
   
-  const icons = {
-    character: '👤',
-    corporation: '🏢',
-    alliance: '👑'
+  const symbols = {
+    character: 'C',
+    corporation: 'CORP',
+    alliance: 'A'
   }
   
   const color = colors[type]
-  const icon = icons[type]
+  const symbol = symbols[type]
   
-  // Create a simple SVG placeholder
+  // Create a simple SVG placeholder with text instead of emojis
   const svg = `
     <svg width="128" height="128" xmlns="http://www.w3.org/2000/svg">
       <rect width="128" height="128" fill="${color}" opacity="0.2"/>
-      <text x="64" y="74" text-anchor="middle" font-size="48" fill="${color}">${icon}</text>
+      <circle cx="64" cy="64" r="40" fill="${color}" opacity="0.3"/>
+      <text x="64" y="72" text-anchor="middle" font-size="24" font-weight="bold" fill="${color}">${symbol}</text>
     </svg>
   `
   
-  return `data:image/svg+xml;base64,${btoa(svg)}`
+  // Use encodeURIComponent instead of btoa to handle all characters properly
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
