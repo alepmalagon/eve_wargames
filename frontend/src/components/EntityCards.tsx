@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Users, Building, Crown } from 'lucide-react'
 import { 
   getCharacterPortraitUrl, 
@@ -6,6 +6,11 @@ import {
   getAllianceLogoUrl, 
   getFallbackImageUrl 
 } from '../utils/eveImages'
+import { 
+  resolveCharacterName, 
+  resolveCorporationName, 
+  resolveAllianceName 
+} from '../utils/eveNames'
 
 interface BaseEntityProps {
   rank: number
@@ -82,8 +87,29 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   kills,
   iskKilled
 }) => {
+  const [resolvedName, setResolvedName] = useState(characterName)
+  const [isLoading, setIsLoading] = useState(false)
+  
   const portraitUrl = getCharacterPortraitUrl(characterId, 64)
   const fallbackUrl = getFallbackImageUrl('character')
+
+  useEffect(() => {
+    const resolveName = async () => {
+      if (characterName.includes('Character_')) {
+        setIsLoading(true)
+        try {
+          const realName = await resolveCharacterName(characterName, characterId)
+          setResolvedName(realName)
+        } catch (error) {
+          console.warn('Failed to resolve character name:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+    }
+    
+    resolveName()
+  }, [characterName, characterId])
 
   return (
     <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
@@ -92,11 +118,17 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <EntityImage
           src={portraitUrl}
           fallbackSrc={fallbackUrl}
-          alt={`${characterName} portrait`}
+          alt={`${resolvedName} portrait`}
           className="w-10 h-10 flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <p className="text-white font-medium truncate">{characterName}</p>
+          <p className="text-white font-medium truncate">
+            {isLoading ? (
+              <span className="animate-pulse bg-gray-600 rounded h-4 w-24 inline-block"></span>
+            ) : (
+              resolvedName
+            )}
+          </p>
           <div className="flex gap-4 text-sm">
             <span className="text-red-400">{kills} kills</span>
             <span className="text-green-400">{formatISK(iskKilled)} ISK</span>
@@ -116,8 +148,29 @@ export const CorporationCard: React.FC<CorporationCardProps> = ({
   iskKilled,
   uniquePlayers
 }) => {
+  const [resolvedName, setResolvedName] = useState(corporationName)
+  const [isLoading, setIsLoading] = useState(false)
+  
   const logoUrl = getCorporationLogoUrl(corporationId, 64)
   const fallbackUrl = getFallbackImageUrl('corporation')
+
+  useEffect(() => {
+    const resolveName = async () => {
+      if (corporationName.includes('Corporation_')) {
+        setIsLoading(true)
+        try {
+          const realName = await resolveCorporationName(corporationName, corporationId)
+          setResolvedName(realName)
+        } catch (error) {
+          console.warn('Failed to resolve corporation name:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+    }
+    
+    resolveName()
+  }, [corporationName, corporationId])
 
   return (
     <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
@@ -126,12 +179,16 @@ export const CorporationCard: React.FC<CorporationCardProps> = ({
         <EntityImage
           src={logoUrl}
           fallbackSrc={fallbackUrl}
-          alt={`${corporationName} logo`}
+          alt={`${resolvedName} logo`}
           className="w-10 h-10 flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium truncate">
-            [{ticker}] {corporationName}
+            {isLoading ? (
+              <span className="animate-pulse bg-gray-600 rounded h-4 w-32 inline-block"></span>
+            ) : (
+              `[${ticker}] ${resolvedName}`
+            )}
           </p>
           <div className="flex gap-4 text-sm">
             <span className="text-red-400">{kills} kills</span>
@@ -154,8 +211,29 @@ export const AllianceCard: React.FC<AllianceCardProps> = ({
   uniquePlayers,
   uniqueCorporations
 }) => {
+  const [resolvedName, setResolvedName] = useState(allianceName)
+  const [isLoading, setIsLoading] = useState(false)
+  
   const logoUrl = getAllianceLogoUrl(allianceId, 64)
   const fallbackUrl = getFallbackImageUrl('alliance')
+
+  useEffect(() => {
+    const resolveName = async () => {
+      if (allianceName.includes('Alliance_')) {
+        setIsLoading(true)
+        try {
+          const realName = await resolveAllianceName(allianceName, allianceId)
+          setResolvedName(realName)
+        } catch (error) {
+          console.warn('Failed to resolve alliance name:', error)
+        } finally {
+          setIsLoading(false)
+        }
+      }
+    }
+    
+    resolveName()
+  }, [allianceName, allianceId])
 
   return (
     <div className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
@@ -164,12 +242,16 @@ export const AllianceCard: React.FC<AllianceCardProps> = ({
         <EntityImage
           src={logoUrl}
           fallbackSrc={fallbackUrl}
-          alt={`${allianceName} logo`}
+          alt={`${resolvedName} logo`}
           className="w-10 h-10 flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium truncate">
-            &lt;{ticker}&gt; {allianceName}
+            {isLoading ? (
+              <span className="animate-pulse bg-gray-600 rounded h-4 w-32 inline-block"></span>
+            ) : (
+              `<${ticker}> ${resolvedName}`
+            )}
           </p>
           <div className="flex gap-4 text-sm">
             <span className="text-red-400">{kills} kills</span>
