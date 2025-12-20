@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { systemsApi } from '../services/api'
+import { systemsApi, frontlinesApi } from '../services/api'
 import { 
   ArrowLeft, 
   AlertTriangle, 
@@ -38,6 +38,13 @@ interface SystemDetails {
   amarr_advantage: number
   created_at: string
   updated_at: string
+  frontline_classification?: 'frontline' | 'command_operations' | 'rearguard'
+  adjacent_systems?: Array<{
+    system_id: number
+    name: string
+    controlling_faction_id: number
+    classification: string
+  }>
   recent_snapshots: Array<{
     timestamp: string
     controlling_faction_id: number
@@ -153,13 +160,24 @@ export const SystemDetail: React.FC = () => {
       setLoading(true)
       setError(null)
 
-      const [detailsResponse, trendsResponse, killmailStatsResponse] = await Promise.all([
+      const [detailsResponse, trendsResponse, killmailStatsResponse, frontlineResponse] = await Promise.all([
         systemsApi.getSystemDetails(parseInt(systemId)),
         systemsApi.getSystemTrends(parseInt(systemId), timeRange),
-        systemsApi.getSystemKillmailStats(parseInt(systemId), timeRange).catch(() => null)
+        systemsApi.getSystemKillmailStats(parseInt(systemId), timeRange).catch(() => null),
+        frontlinesApi.getSystemInfo(parseInt(systemId)).catch(err => {
+          console.warn('Failed to fetch frontline data:', err)
+          return null
+        })
       ])
 
-      setSystemDetails(detailsResponse.data)
+      // Merge frontline data with system details
+      const systemDetailsWithFrontline = {
+        ...detailsResponse.data,
+        frontline_classification: frontlineResponse?.data?.classification,
+        adjacent_systems: frontlineResponse?.data?.adjacent_systems
+      }
+
+      setSystemDetails(systemDetailsWithFrontline)
       setTrendData(trendsResponse.data)
       setKillmailStats(killmailStatsResponse?.data || null)
     } catch (err) {
@@ -190,6 +208,43 @@ export const SystemDetail: React.FC = () => {
     if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`
     if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`
     return value.toFixed(0)
+  }
+
+  const getFrontlineClassificationInfo = (classification?: string) => {
+    switch (classification) {
+      case 'frontline':
+        return {
+          label: 'Frontline',
+          color: 'text-red-400',
+          bgColor: 'bg-red-500/20',
+          icon: '🔴',
+          description: 'System adjacent to enemy-controlled territory'
+        }
+      case 'command_operations':
+        return {
+          label: 'Command Operations',
+          color: 'text-orange-400',
+          bgColor: 'bg-orange-500/20',
+          icon: '🟡',
+          description: 'System adjacent to frontline systems'
+        }
+      case 'rearguard':
+        return {
+          label: 'Rearguard',
+          color: 'text-green-400',
+          bgColor: 'bg-green-500/20',
+          icon: '🟢',
+          description: 'Safe zone away from immediate battle'
+        }
+      default:
+        return {
+          label: 'Unknown',
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-500/20',
+          icon: '⚪',
+          description: 'Classification not available'
+        }
+    }
   }
 
   const getFactionColor = (factionId: number) => {
@@ -337,7 +392,7 @@ export const SystemDetail: React.FC = () => {
       </div>
 
       {/* Current Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="card">
           <div className="flex items-center gap-3">
             <Shield className={`w-8 h-8 ${systemDetails.contested ? 'text-orange-500' : 'text-green-500'}`} />
@@ -388,6 +443,23 @@ export const SystemDetail: React.FC = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="card">
+          {(() => {
+            const frontlineInfo = getFrontlineClassificationInfo(systemDetails.frontline_classification)
+            return (
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">{frontlineInfo.icon}</div>
+                <div>
+                  <p className="text-gray-400 text-sm">Frontline Status</p>
+                  <p className={`font-bold text-lg ${frontlineInfo.color}`}>
+                    {frontlineInfo.label}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
 

@@ -59,6 +59,15 @@ export const systemsApi = {
   getSystemsByFaction: (factionId: number) => api.get(`/systems/faction/${factionId}`),
 }
 
+// Frontlines API
+export const frontlinesApi = {
+  getOverview: () => api.get('/frontlines/'),
+  getLiveData: () => api.get('/frontlines/live'),
+  getSystemInfo: (systemId: number) => api.get(`/frontlines/system/${systemId}`),
+  getSystemAdjacency: (systemId: number) => api.get(`/frontlines/adjacency/${systemId}`),
+  getStatistics: () => api.get('/frontlines/stats'),
+}
+
 // Kills API
 export const killsApi = {
   getStatistics: (params: {

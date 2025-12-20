@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { systemsApi } from '../services/api'
+import { systemsApi, frontlinesApi } from '../services/api'
 import { ChevronUp, ChevronDown, Filter, Search, AlertTriangle, Shield, Table, Map } from 'lucide-react'
 import { MapView } from './MapView'
 import { SystemSidebar } from './SystemSidebar'
@@ -16,6 +16,7 @@ interface System {
   minmatar_advantage: number
   amarr_advantage: number
   updated_at: string
+  frontline_classification?: 'frontline' | 'command_operations' | 'rearguard'
 }
 
 type SortField = 'name' | 'controlling_faction_id' | 'capture_percent' | 'advantage_percent' | 'updated_at'
@@ -59,11 +60,43 @@ export const SystemsView: React.FC = () => {
   const fetchSystems = async () => {
     try {
       setLoading(true)
-      const response = await systemsApi.getSystems(
-        factionFilter || undefined,
-        contestedFilter || undefined
-      )
-      setSystems(response.data)
+      
+      // Fetch systems data and frontline classifications in parallel
+      const [systemsResponse, frontlinesResponse] = await Promise.all([
+        systemsApi.getSystems(
+          factionFilter || undefined,
+          contestedFilter || undefined
+        ),
+        frontlinesApi.getOverview().catch(err => {
+          console.warn('Failed to fetch frontline data:', err)
+          return { data: { systems: { frontline: [], command_operations: [], rearguard: [] } } }
+        })
+      ])
+      
+      // Create a map of system_id to frontline classification
+      const frontlineMap = new Map<number, string>()
+      
+      if (frontlinesResponse.data?.systems) {
+        const { frontline, command_operations, rearguard } = frontlinesResponse.data.systems
+        
+        frontline?.forEach((system: any) => {
+          frontlineMap.set(system.system_id, 'frontline')
+        })
+        command_operations?.forEach((system: any) => {
+          frontlineMap.set(system.system_id, 'command_operations')
+        })
+        rearguard?.forEach((system: any) => {
+          frontlineMap.set(system.system_id, 'rearguard')
+        })
+      }
+      
+      // Merge frontline classification data with systems data
+      const systemsWithFrontlineData = systemsResponse.data.map((system: System) => ({
+        ...system,
+        frontline_classification: frontlineMap.get(system.system_id)
+      }))
+      
+      setSystems(systemsWithFrontlineData)
       setError(null)
     } catch (err) {
       setError('Failed to fetch systems data')
@@ -95,6 +128,39 @@ export const SystemsView: React.FC = () => {
       case 500002: return 'text-minmatar-red'
       case 500003: return 'text-amarr-yellow'
       default: return 'text-gray-400'
+    }
+  }
+
+  const getFrontlineClassificationInfo = (classification?: string) => {
+    switch (classification) {
+      case 'frontline':
+        return {
+          label: 'Frontline',
+          color: 'text-red-400',
+          bgColor: 'bg-red-500/20',
+          icon: '🔴'
+        }
+      case 'command_operations':
+        return {
+          label: 'Command Ops',
+          color: 'text-orange-400',
+          bgColor: 'bg-orange-500/20',
+          icon: '🟡'
+        }
+      case 'rearguard':
+        return {
+          label: 'Rearguard',
+          color: 'text-green-400',
+          bgColor: 'bg-green-500/20',
+          icon: '🟢'
+        }
+      default:
+        return {
+          label: 'Unknown',
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-500/20',
+          icon: '⚪'
+        }
     }
   }
 
@@ -324,6 +390,7 @@ export const SystemsView: React.FC = () => {
                   </div>
                 </th>
                 <th className="text-left py-3 px-4">Status</th>
+                <th className="text-left py-3 px-4">Frontline</th>
                 <th 
                   className="text-left py-3 px-4 cursor-pointer hover:bg-gray-800 transition-colors"
                   onClick={() => handleSort('capture_percent')}
@@ -383,6 +450,19 @@ export const SystemsView: React.FC = () => {
                         </>
                       )}
                     </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    {(() => {
+                      const frontlineInfo = getFrontlineClassificationInfo(system.frontline_classification)
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{frontlineInfo.icon}</span>
+                          <span className={`text-sm font-medium px-2 py-1 rounded-full ${frontlineInfo.bgColor} ${frontlineInfo.color}`}>
+                            {frontlineInfo.label}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
