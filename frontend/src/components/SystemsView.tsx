@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { systemsApi, frontlinesApi } from '../services/api'
-import { ChevronUp, ChevronDown, Filter, Search, AlertTriangle, Shield, Table, Map } from 'lucide-react'
+import { ChevronUp, ChevronDown, Filter, Search, AlertTriangle, Shield, Table, Map as MapIcon } from 'lucide-react'
 import { MapView } from './MapView'
 import { SystemSidebar } from './SystemSidebar'
 
@@ -281,7 +281,7 @@ export const SystemsView: React.FC = () => {
                 : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
-            <Map className="w-4 h-4" />
+            <MapIcon className="w-4 h-4" />
             Map View
           </button>
         </div>
