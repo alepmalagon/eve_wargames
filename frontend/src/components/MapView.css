@@ -21,12 +21,12 @@
 /* System styles based on faction */
 .system-minmatar .system-fill {
   fill: #dc2626;
-  fill-opacity: 0.2;
+  fill-opacity: 0.2; /* Default opacity */
 }
 
 .system-amarr .system-fill {
   fill: #eab308;
-  fill-opacity: 0.2;
+  fill-opacity: 0.2; /* Default opacity */
 }
 
 .system-minmatar .system-border {
@@ -41,17 +41,17 @@
   fill: none;
 }
 
-/* System status styles */
-.system-backline .system-fill {
-  fill-opacity: 0.5;
-}
-
+/* Frontline classification opacity styles */
 .system-frontline .system-fill {
-  fill-opacity: 0.8;
+  fill-opacity: 0.5; /* 50% opacity for frontlines - highest strategic importance */
 }
 
-.system-secondline .system-fill {
-  fill-opacity: 0.6;
+.system-command_operations .system-fill {
+  fill-opacity: 0.3; /* 30% opacity for command operations - medium strategic importance */
+}
+
+.system-rearguard .system-fill {
+  fill-opacity: 0.1; /* 10% opacity for rearguards - lowest strategic importance */
 }
 
 /* Interactive states */

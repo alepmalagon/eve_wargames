@@ -14,6 +14,7 @@ interface System {
   minmatar_advantage: number
   amarr_advantage: number
   updated_at: string
+  frontline_classification?: 'frontline' | 'command_operations' | 'rearguard'
 }
 
 interface MapViewProps {
@@ -80,7 +81,10 @@ export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onS
     const contestedClass = system.contested ? 'system-contested' : ''
     const selectedClass = selectedSystemId === systemId ? 'selected' : ''
     
-    return `system-group ${factionClass} ${contestedClass} ${selectedClass}`.trim()
+    // Add frontline classification class for opacity styling
+    const frontlineClass = system.frontline_classification ? `system-${system.frontline_classification}` : ''
+    
+    return `system-group ${factionClass} ${contestedClass} ${selectedClass} ${frontlineClass}`.trim()
   }
 
   // SVG content extracted from map.html - this is a simplified version
