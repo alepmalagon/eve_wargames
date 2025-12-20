@@ -11,7 +11,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
 
 from app.config import settings
-from app.api import faction_warfare, systems, kills
+from app.api import faction_warfare, systems, kills, frontlines
 from app.database import engine, Base
 from app.services.esi_client import esi_client
 from app.logging_config import setup_logging, get_app_logger, set_request_id, clear_request_id
@@ -133,6 +133,12 @@ app.include_router(
     kills.router,
     prefix="/api/v1/kills",
     tags=["Kills"]
+)
+
+app.include_router(
+    frontlines.router,
+    prefix="/api/v1/frontlines",
+    tags=["Frontlines"]
 )
 
 @app.on_event("startup")
