@@ -87,10 +87,35 @@ export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onS
     return `system-group ${factionClass} ${contestedClass} ${selectedClass} ${frontlineClass}`.trim()
   }
 
+  // Calculate the centroid (center point) of an SVG path
+  const calculatePathCentroid = (pathData: string) => {
+    // Parse the path data to extract coordinates
+    const coords = pathData.match(/[0-9.]+/g)?.map(Number) || []
+    
+    if (coords.length < 4) return { x: 0, y: 0 }
+    
+    // Calculate centroid by averaging all x and y coordinates
+    let sumX = 0, sumY = 0, count = 0
+    
+    for (let i = 0; i < coords.length; i += 2) {
+      if (i + 1 < coords.length) {
+        sumX += coords[i]
+        sumY += coords[i + 1]
+        count++
+      }
+    }
+    
+    return {
+      x: count > 0 ? sumX / count : 0,
+      y: count > 0 ? sumY / count : 0
+    }
+  }
+
   // SVG content extracted from map.html - this is a simplified version
   // In a real implementation, you'd want to load this dynamically
   const renderSystemGroup = (systemId: number, pathData: string, title: string) => {
     const classes = getSystemClasses(systemId)
+    const centroid = calculatePathCentroid(pathData)
     
     return (
       <g
@@ -109,6 +134,15 @@ export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onS
           d={pathData}
           className="system-border"
         />
+        <text
+          x={centroid.x}
+          y={centroid.y}
+          className="system-label"
+          textAnchor="middle"
+          dominantBaseline="central"
+        >
+          {title}
+        </text>
       </g>
     )
   }
