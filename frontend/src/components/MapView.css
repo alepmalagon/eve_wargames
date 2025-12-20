@@ -31,13 +31,13 @@
 
 .system-minmatar .system-border {
   stroke: #dc2626;
-  stroke-width: 2;
+  stroke-width: 5;
   fill: none;
 }
 
 .system-amarr .system-border {
   stroke: #eab308;
-  stroke-width: 2;
+  stroke-width: 5;
   fill: none;
 }
 
