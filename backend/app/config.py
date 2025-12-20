@@ -87,7 +87,15 @@ class Settings(BaseSettings):
     # Logging settings
     LOG_LEVEL: str = Field(
         default="INFO",
-        description="Logging level"
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
+    LOG_FORMAT: str = Field(
+        default="auto",
+        description="Log format: 'auto' (console for DEBUG, JSON for production), 'console', or 'json'"
+    )
+    LOG_REQUEST_DETAILS: bool = Field(
+        default=True,
+        description="Enable detailed request/response logging"
     )
     
     # Faction Warfare specific settings
