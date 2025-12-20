@@ -538,3 +538,46 @@ async def collect_killmails_immediately(
         logger.error(f"Failed to collect killmails for system {system_id}: {str(e)}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to collect killmails: {str(e)}")
+
+
+@router.get("/leaderboard")
+async def get_faction_warfare_leaderboard():
+    """
+    Get faction warfare leaderboard data from EVE Online API.
+    
+    This endpoint acts as a proxy to the EVE Online warzone leaderboard API
+    to avoid CORS issues when calling from the frontend.
+    
+    Returns:
+        Leaderboard data for all factions including kills and victory points rankings
+    """
+    import httpx
+    
+    logger.info("Fetching faction warfare leaderboard data")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            logger.debug("Making request to EVE Online leaderboard API")
+            response = await client.get("https://www.eveonline.com/api/warzone/leaderboard")
+            
+            if response.status_code != 200:
+                logger.error(f"EVE Online API returned status {response.status_code}: {response.text}")
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"Failed to fetch leaderboard data from EVE Online API (status: {response.status_code})"
+                )
+            
+            leaderboard_data = response.json()
+            logger.info("Successfully fetched leaderboard data from EVE Online API")
+            
+            return leaderboard_data
+            
+    except httpx.TimeoutException:
+        logger.error("Timeout while fetching leaderboard data from EVE Online API")
+        raise HTTPException(status_code=504, detail="Timeout while fetching leaderboard data")
+    except httpx.RequestError as e:
+        logger.error(f"Request error while fetching leaderboard data: {str(e)}")
+        raise HTTPException(status_code=502, detail="Failed to connect to EVE Online API")
+    except Exception as e:
+        logger.error(f"Unexpected error while fetching leaderboard data: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error while fetching leaderboard data")

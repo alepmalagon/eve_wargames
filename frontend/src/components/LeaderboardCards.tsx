@@ -145,7 +145,9 @@ export const LeaderboardCards: React.FC = () => {
     const fetchLeaderboardData = async () => {
       try {
         setLoading(true)
-        const response = await fetch('https://www.eveonline.com/api/warzone/leaderboard')
+        // Use the backend proxy endpoint to avoid CORS issues
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+        const response = await fetch(`${apiUrl}/api/v1/faction-warfare/leaderboard`)
         
         if (!response.ok) {
           throw new Error('Failed to fetch leaderboard data')
