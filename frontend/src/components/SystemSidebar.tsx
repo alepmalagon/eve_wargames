@@ -12,6 +12,7 @@ interface System {
   minmatar_advantage: number
   amarr_advantage: number
   updated_at: string
+  frontline_classification?: 'frontline' | 'command_operations' | 'rearguard'
 }
 
 interface SystemSidebarProps {
@@ -64,6 +65,43 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
     return 'text-red-400'
   }
 
+  const getFrontlineClassificationInfo = (classification?: string) => {
+    switch (classification) {
+      case 'frontline':
+        return {
+          label: 'Frontline',
+          color: 'text-red-400',
+          bgColor: 'bg-red-500/20',
+          icon: '🔴',
+          description: 'System adjacent to enemy-controlled territory'
+        }
+      case 'command_operations':
+        return {
+          label: 'Command Operations',
+          color: 'text-orange-400',
+          bgColor: 'bg-orange-500/20',
+          icon: '🟡',
+          description: 'System adjacent to frontline systems'
+        }
+      case 'rearguard':
+        return {
+          label: 'Rearguard',
+          color: 'text-green-400',
+          bgColor: 'bg-green-500/20',
+          icon: '🟢',
+          description: 'Safe zone away from immediate battle'
+        }
+      default:
+        return {
+          label: 'Unknown',
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-500/20',
+          icon: '⚪',
+          description: 'Classification not available'
+        }
+    }
+  }
+
   return (
     <div className="w-80 bg-gray-900 border-l border-gray-700 p-6 overflow-y-auto">
       {/* Header */}
@@ -111,6 +149,25 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
         <div className={`text-lg font-semibold ${getFactionColor(selectedSystem.controlling_faction_id)}`}>
           {getFactionName(selectedSystem.controlling_faction_id)}
         </div>
+      </div>
+
+      {/* Frontline Classification */}
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-300 mb-2">Frontline Classification</h4>
+        {(() => {
+          const frontlineInfo = getFrontlineClassificationInfo(selectedSystem.frontline_classification)
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{frontlineInfo.icon}</span>
+                <span className={`font-semibold px-3 py-1 rounded-full ${frontlineInfo.bgColor} ${frontlineInfo.color}`}>
+                  {frontlineInfo.label}
+                </span>
+              </div>
+              <p className="text-sm text-gray-400">{frontlineInfo.description}</p>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Capture Progress */}
