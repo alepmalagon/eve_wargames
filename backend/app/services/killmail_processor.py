@@ -175,10 +175,10 @@ class KillmailProcessor:
                 attacker_alliance_id = final_blow_attacker.get('alliance_id')
                 attacker_faction_id = final_blow_attacker.get('faction_id')
             
-            # Create/update entity records for victim
-            self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
-            self._ensure_corporation_exists(victim_corporation_id, victim_alliance_id, db)
+            # Create/update entity records for victim (in dependency order: Alliance → Corporation → Player)
             self._ensure_alliance_exists(victim_alliance_id, db)
+            self._ensure_corporation_exists(victim_corporation_id, victim_alliance_id, db)
+            self._ensure_player_exists(victim_character_id, victim_corporation_id, victim_alliance_id, db)
             
             # Create/update entity records for ALL attackers (if we have ESI data)
             if full_killmail:
@@ -187,14 +187,15 @@ class KillmailProcessor:
                     att_corp_id = attacker.get('corporation_id')
                     att_alliance_id = attacker.get('alliance_id')
                     
-                    self._ensure_player_exists(att_char_id, att_corp_id, att_alliance_id, db)
-                    self._ensure_corporation_exists(att_corp_id, att_alliance_id, db)
+                    # Create entities in dependency order: Alliance → Corporation → Player
                     self._ensure_alliance_exists(att_alliance_id, db)
+                    self._ensure_corporation_exists(att_corp_id, att_alliance_id, db)
+                    self._ensure_player_exists(att_char_id, att_corp_id, att_alliance_id, db)
             else:
-                # Fallback: only create entities for final blow attacker
-                self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
-                self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
+                # Fallback: only create entities for final blow attacker (in dependency order)
                 self._ensure_alliance_exists(attacker_alliance_id, db)
+                self._ensure_corporation_exists(attacker_corporation_id, attacker_alliance_id, db)
+                self._ensure_player_exists(attacker_character_id, attacker_corporation_id, attacker_alliance_id, db)
             
             # Create killmail record
             killmail_record = Killmail(
