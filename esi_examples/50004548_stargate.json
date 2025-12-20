@@ -1,0 +1,15 @@
+{
+  "destination": {
+    "stargate_id": 50000738,
+    "system_id": 30002506
+  },
+  "name": "Stargate (Osoggur)",
+  "position": {
+    "x": 764735201280,
+    "y": -138678312960,
+    "z": -944958873600
+  },
+  "stargate_id": 50004548,
+  "system_id": 30002537,
+  "type_id": 3877
+}
