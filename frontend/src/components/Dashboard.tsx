@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Activity, Shield, Zap, TrendingUp } from 'lucide-react'
 import { factionWarfareApi } from '../services/api'
+import { LeaderboardCards } from './LeaderboardCards'
 
 interface FactionWarfareOverview {
   timestamp: string
@@ -257,6 +258,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Leaderboard Cards */}
+      <LeaderboardCards />
     </div>
   )
 }
