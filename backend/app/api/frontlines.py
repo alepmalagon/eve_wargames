@@ -18,7 +18,7 @@ from ..utils.frontline_classifier import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/frontlines", tags=["frontlines"])
+router = APIRouter(tags=["frontlines"])
 
 
 @router.get("/")
