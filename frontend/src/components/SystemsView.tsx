@@ -131,27 +131,30 @@ export const SystemsView: React.FC = () => {
     }
   }
 
-  const getFrontlineClassificationInfo = (classification?: string) => {
+  const getFrontlineClassificationInfo = (classification?: string, factionId?: number) => {
+    const isMinmatar = factionId === 500002
+    const isAmarr = factionId === 500003
+    
     switch (classification) {
       case 'frontline':
         return {
           label: 'Frontline',
-          color: 'text-red-400',
-          bgColor: 'bg-red-500/20',
+          color: isMinmatar ? 'text-minmatar-red' : isAmarr ? 'text-amarr-yellow' : 'text-red-400',
+          bgColor: isMinmatar ? 'bg-minmatar-frontline' : isAmarr ? 'bg-amarr-frontline' : 'bg-red-500/20',
           icon: '🔴'
         }
       case 'command_operations':
         return {
           label: 'Command Ops',
-          color: 'text-orange-400',
-          bgColor: 'bg-orange-500/20',
+          color: isMinmatar ? 'text-minmatar-red' : isAmarr ? 'text-amarr-yellow' : 'text-orange-400',
+          bgColor: isMinmatar ? 'bg-minmatar-command' : isAmarr ? 'bg-amarr-command' : 'bg-orange-500/20',
           icon: '🟡'
         }
       case 'rearguard':
         return {
           label: 'Rearguard',
-          color: 'text-green-400',
-          bgColor: 'bg-green-500/20',
+          color: isMinmatar ? 'text-minmatar-red' : isAmarr ? 'text-amarr-yellow' : 'text-green-400',
+          bgColor: isMinmatar ? 'bg-minmatar-rearguard' : isAmarr ? 'bg-amarr-rearguard' : 'bg-green-500/20',
           icon: '🟢'
         }
       default:
@@ -453,7 +456,7 @@ export const SystemsView: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     {(() => {
-                      const frontlineInfo = getFrontlineClassificationInfo(system.frontline_classification)
+                      const frontlineInfo = getFrontlineClassificationInfo(system.frontline_classification, system.controlling_faction_id)
                       return (
                         <div className="flex items-center gap-2">
                           <span className="text-sm">{frontlineInfo.icon}</span>

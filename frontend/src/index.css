@@ -38,6 +38,33 @@
     border-color: #eab308;
   }
   
+  /* Faction colors with opacity for frontline classifications */
+  /* Minmatar (Red) with different opacities */
+  .bg-minmatar-frontline {
+    background-color: rgba(220, 38, 38, 0.5); /* 50% opacity for frontlines */
+  }
+  
+  .bg-minmatar-command {
+    background-color: rgba(220, 38, 38, 0.3); /* 30% opacity for command ops */
+  }
+  
+  .bg-minmatar-rearguard {
+    background-color: rgba(220, 38, 38, 0.1); /* 10% opacity for rearguard */
+  }
+  
+  /* Amarr (Yellow) with different opacities */
+  .bg-amarr-frontline {
+    background-color: rgba(234, 179, 8, 0.5); /* 50% opacity for frontlines */
+  }
+  
+  .bg-amarr-command {
+    background-color: rgba(234, 179, 8, 0.3); /* 30% opacity for command ops */
+  }
+  
+  .bg-amarr-rearguard {
+    background-color: rgba(234, 179, 8, 0.1); /* 10% opacity for rearguard */
+  }
+  
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
   }
