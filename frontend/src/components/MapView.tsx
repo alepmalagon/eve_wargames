@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { ZoomIn, ZoomOut, RotateCcw, Maximize, Minimize } from 'lucide-react'
 import { mapSystems } from '../data/mapSystems'
 import './MapView.css'
 
@@ -21,9 +21,11 @@ interface MapViewProps {
   systems: System[]
   selectedSystemId: number | null
   onSystemSelect: (systemId: number) => void
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
 }
 
-export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onSystemSelect }) => {
+export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onSystemSelect, isFullscreen = false, onToggleFullscreen }) => {
   const svgRef = useRef<SVGSVGElement>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -148,7 +150,7 @@ export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onS
   }
 
   return (
-    <div className="warzone-map-container">
+    <div className={`warzone-map-container ${isFullscreen ? 'fullscreen' : ''}`}>
       {/* Map Controls */}
       <div className="map-controls">
         <button className="map-control-btn" onClick={handleZoomIn} title="Zoom In">
@@ -160,6 +162,15 @@ export const MapView: React.FC<MapViewProps> = ({ systems, selectedSystemId, onS
         <button className="map-control-btn" onClick={handleReset} title="Reset View">
           <RotateCcw className="w-4 h-4" />
         </button>
+        {onToggleFullscreen && (
+          <button 
+            className="map-control-btn" 
+            onClick={onToggleFullscreen} 
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Map Legend */}

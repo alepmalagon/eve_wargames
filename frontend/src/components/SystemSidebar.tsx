@@ -18,12 +18,15 @@ interface System {
 interface SystemSidebarProps {
   selectedSystem: System | null
   onClose: () => void
+  isFullscreen?: boolean
 }
 
-export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, onClose }) => {
+export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, onClose, isFullscreen = false }) => {
+  const sidebarWidthClass = isFullscreen ? 'w-2/5' : 'w-80'
+  
   if (!selectedSystem) {
     return (
-      <div className="w-80 bg-gray-900 border-l border-gray-700 p-6 flex items-center justify-center">
+      <div className={`${sidebarWidthClass} bg-gray-900 border-l border-gray-700 p-6 flex items-center justify-center`}>
         <div className="text-center text-gray-400">
           <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg font-medium mb-2">Select a System</p>
@@ -106,7 +109,7 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
   }
 
   return (
-    <div className="w-80 bg-gray-900 border-l border-gray-700 p-6 overflow-y-auto">
+    <div className={`${sidebarWidthClass} bg-gray-900 border-l border-gray-700 p-6 overflow-y-auto`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-bold text-white">System Details</h3>
