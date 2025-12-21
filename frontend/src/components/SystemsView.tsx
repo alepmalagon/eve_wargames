@@ -269,7 +269,7 @@ export const SystemsView: React.FC = () => {
             onToggleFullscreen={toggleFullscreen}
           />
         </div>
-        <div className="w-2/5 flex-shrink-0">
+        <div className="w-2/5 flex-shrink-0 bg-red-500 border-4 border-yellow-400">
           <SystemSidebar
             selectedSystem={selectedSystem}
             onClose={handleCloseSidebar}
