@@ -516,16 +516,14 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
                   {killmailStats.top_performers.players.length > 0 ? (
                     <div className="space-y-2">
                       {killmailStats.top_performers.players.slice(0, 5).map((player, index) => (
-                        <div key={player.character_id} className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 w-4">#{index + 1}</span>
-                            <span className="text-white">{player.character_name}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-white">{player.kills} kills</div>
-                            <div className="text-gray-400 text-xs">{formatISK(player.isk_killed)} ISK</div>
-                          </div>
-                        </div>
+                        <PlayerCard
+                          key={player.character_id}
+                          rank={index + 1}
+                          characterId={player.character_id}
+                          characterName={player.character_name}
+                          kills={player.kills}
+                          iskKilled={player.isk_killed}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -542,19 +540,16 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
                   {killmailStats.top_performers.corporations.length > 0 ? (
                     <div className="space-y-2">
                       {killmailStats.top_performers.corporations.slice(0, 5).map((corp, index) => (
-                        <div key={corp.corporation_id} className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 w-4">#{index + 1}</span>
-                            <div>
-                              <div className="text-white">{corp.corporation_name}</div>
-                              <div className="text-gray-400 text-xs">[{corp.ticker}] • {corp.unique_players} pilots</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-white">{corp.kills} kills</div>
-                            <div className="text-gray-400 text-xs">{formatISK(corp.isk_killed)} ISK</div>
-                          </div>
-                        </div>
+                        <CorporationCard
+                          key={corp.corporation_id}
+                          rank={index + 1}
+                          corporationId={corp.corporation_id}
+                          corporationName={corp.corporation_name}
+                          ticker={corp.ticker}
+                          kills={corp.kills}
+                          iskKilled={corp.isk_killed}
+                          uniquePlayers={corp.unique_players}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -571,19 +566,17 @@ export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, on
                     </div>
                     <div className="space-y-2">
                       {killmailStats.top_performers.alliances.slice(0, 3).map((alliance, index) => (
-                        <div key={alliance.alliance_id} className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 w-4">#{index + 1}</span>
-                            <div>
-                              <div className="text-white">{alliance.alliance_name}</div>
-                              <div className="text-gray-400 text-xs">[{alliance.ticker}] • {alliance.unique_corporations} corps</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-white">{alliance.kills} kills</div>
-                            <div className="text-gray-400 text-xs">{formatISK(alliance.isk_killed)} ISK</div>
-                          </div>
-                        </div>
+                        <AllianceCard
+                          key={alliance.alliance_id}
+                          rank={index + 1}
+                          allianceId={alliance.alliance_id}
+                          allianceName={alliance.alliance_name}
+                          ticker={alliance.ticker}
+                          kills={alliance.kills}
+                          iskKilled={alliance.isk_killed}
+                          uniquePlayers={alliance.unique_players}
+                          uniqueCorporations={alliance.unique_corporations}
+                        />
                       ))}
                     </div>
                   </div>
