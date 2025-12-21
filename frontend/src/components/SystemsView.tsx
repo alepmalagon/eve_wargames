@@ -34,6 +34,7 @@ export const SystemsView: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [activeTab, setActiveTab] = useState<'table' | 'map'>('table')
   const [selectedSystemId, setSelectedSystemId] = useState<number | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Faction constants
   const MINMATAR_FACTION_ID = 500002
@@ -198,7 +199,11 @@ export const SystemsView: React.FC = () => {
     setSelectedSystemId(null)
   }
 
-  const selectedSystem = selectedSystemId ? systems.find(s => s.system_id === selectedSystemId) : null
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen)
+  }
+
+  const selectedSystem = selectedSystemId ? systems.find(s => s.system_id === selectedSystemId) || null : null
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp className="w-4 h-4 opacity-30" />
@@ -247,6 +252,28 @@ export const SystemsView: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  // Render fullscreen layout if in fullscreen mode
+  if (isFullscreen && activeTab === 'map') {
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-900 flex">
+        <div className="flex-1" style={{ width: '60%' }}>
+          <MapView
+            systems={systems}
+            selectedSystemId={selectedSystemId}
+            onSystemSelect={handleSystemSelect}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+          />
+        </div>
+        <SystemSidebar
+          selectedSystem={selectedSystem}
+          onClose={handleCloseSidebar}
+          isFullscreen={isFullscreen}
+        />
       </div>
     )
   }
@@ -520,11 +547,14 @@ export const SystemsView: React.FC = () => {
                 systems={systems}
                 selectedSystemId={selectedSystemId}
                 onSystemSelect={handleSystemSelect}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={toggleFullscreen}
               />
             </div>
             <SystemSidebar
               selectedSystem={selectedSystem}
               onClose={handleCloseSidebar}
+              isFullscreen={isFullscreen}
             />
           </div>
         )}
