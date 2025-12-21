@@ -581,3 +581,133 @@ async def get_faction_warfare_leaderboard():
     except Exception as e:
         logger.error(f"Unexpected error while fetching leaderboard data: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error while fetching leaderboard data")
+
+
+@router.post("/trigger-killmail-automation")
+async def trigger_killmail_automation():
+    """
+    Manually trigger the killmail collection automation.
+    
+    This endpoint allows manual triggering of the staggered killmail collection
+    for all warzone systems. Useful for testing and immediate data collection.
+    
+    Returns:
+        Task result information
+    """
+    logger.info("Manually triggering killmail collection automation")
+    
+    try:
+        from ..tasks.data_collection import orchestrate_killmail_collection
+        
+        # Trigger the orchestration task
+        result = orchestrate_killmail_collection.delay()
+        
+        logger.info(f"Killmail automation task has been queued with ID: {result.id}")
+        
+        return {
+            "status": "queued",
+            "task_id": result.id,
+            "message": "Killmail collection automation has been queued"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger killmail automation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to trigger automation: {str(e)}")
+
+
+@router.post("/trigger-general-data-automation")
+async def trigger_general_data_automation():
+    """
+    Manually trigger the general warzone data collection automation.
+    
+    This endpoint allows manual triggering of the general warzone data collection.
+    Useful for testing and immediate data collection.
+    
+    Returns:
+        Task result information
+    """
+    logger.info("Manually triggering general warzone data collection automation")
+    
+    try:
+        from ..tasks.data_collection import collect_general_warzone_data
+        
+        # Trigger the general data collection task
+        result = collect_general_warzone_data.delay()
+        
+        logger.info(f"General data collection task has been queued with ID: {result.id}")
+        
+        return {
+            "status": "queued",
+            "task_id": result.id,
+            "message": "General warzone data collection has been queued"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to trigger general data automation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to trigger automation: {str(e)}")
+
+
+@router.get("/automation-status")
+async def get_automation_status(db: Session = Depends(get_db)):
+    """
+    Get the status of the automation system.
+    
+    Returns information about the current state of automated data collection,
+    including system counts and recent collection activity.
+    
+    Returns:
+        Automation status information
+    """
+    logger.info("Fetching automation status")
+    
+    try:
+        from ..models.system import System
+        from ..models.killmail import ZkillboardKillmail
+        from sqlalchemy import func
+        
+        # Get system count
+        total_systems = db.query(System).count()
+        
+        # Get recent killmail activity (last 24 hours)
+        recent_killmails = db.query(func.count(ZkillboardKillmail.killmail_id)).filter(
+            ZkillboardKillmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
+        ).scalar()
+        
+        # Get systems with recent killmail data
+        systems_with_recent_data = db.query(func.count(func.distinct(ZkillboardKillmail.system_id))).filter(
+            ZkillboardKillmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
+        ).scalar()
+        
+        # Calculate estimated collection cycle time (5 minutes per system)
+        estimated_cycle_time_minutes = total_systems * 5
+        estimated_cycle_time_hours = estimated_cycle_time_minutes / 60
+        
+        logger.info(f"Automation status: {total_systems} systems, {recent_killmails} recent killmails")
+        
+        return {
+            "status": "active",
+            "timestamp": datetime.utcnow(),
+            "warzone_systems": {
+                "total_systems": total_systems,
+                "systems_with_recent_killmails": systems_with_recent_data,
+                "coverage_percentage": (systems_with_recent_data / total_systems * 100) if total_systems > 0 else 0
+            },
+            "collection_cycle": {
+                "interval_minutes": 5,
+                "estimated_cycle_time_minutes": estimated_cycle_time_minutes,
+                "estimated_cycle_time_hours": round(estimated_cycle_time_hours, 2)
+            },
+            "recent_activity": {
+                "killmails_last_24h": recent_killmails,
+                "systems_active_last_24h": systems_with_recent_data
+            },
+            "automation_schedule": {
+                "killmail_orchestration": "Every hour",
+                "general_data_collection": "Every hour",
+                "system_collection_interval": "5 minutes between systems"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get automation status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get automation status: {str(e)}")

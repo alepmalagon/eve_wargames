@@ -37,6 +37,14 @@ celery_app.conf.beat_schedule = {
         'task': 'app.tasks.data_collection.collect_faction_warfare_data',
         'schedule': 3600.0,  # Every hour
     },
+    'orchestrate-killmail-collection': {
+        'task': 'app.tasks.data_collection.orchestrate_killmail_collection',
+        'schedule': 3600.0,  # Every hour - starts the staggered collection
+    },
+    'collect-general-warzone-data': {
+        'task': 'app.tasks.data_collection.collect_general_warzone_data',
+        'schedule': 3600.0,  # Every hour - collects general warzone data
+    },
     'cleanup-old-data': {
         'task': 'app.tasks.data_collection.cleanup_old_data',
         'schedule': 86400.0,  # Daily

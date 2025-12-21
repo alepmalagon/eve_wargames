@@ -6,6 +6,8 @@ and store it in the database for historical analysis.
 """
 
 import logging
+import asyncio
+import httpx
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from celery import Celery
@@ -226,11 +228,238 @@ def health_check_task(self):
     return results
 
 
+def get_warzone_system_ids(db: Session) -> List[int]:
+    """
+    Get all faction warfare system IDs from the database.
+    
+    Returns:
+        List of system IDs for Minmatar/Amarr warzone systems
+    """
+    try:
+        # Get all systems from the database (they should all be warzone systems)
+        systems = db.query(System.system_id).all()
+        system_ids = [system.system_id for system in systems]
+        
+        logger.info(f"Retrieved {len(system_ids)} warzone system IDs from database")
+        return system_ids
+        
+    except Exception as e:
+        logger.error(f"Failed to get warzone system IDs: {str(e)}", exc_info=True)
+        return []
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def collect_system_killmails(self, system_id: int):
+    """
+    Collect killmail data for a specific system.
+    
+    This task calls the existing killmail collection endpoint for a single system.
+    
+    Args:
+        system_id: EVE system ID to collect killmails for
+        
+    Returns:
+        dict: Collection results
+    """
+    logger.info(f"Starting killmail collection for system {system_id}")
+    
+    try:
+        # Make HTTP request to the existing endpoint
+        async def fetch_killmails():
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                response = await client.post(
+                    f"http://localhost:8000/api/v1/faction-warfare/collect-killmails-now",
+                    params={"system_id": system_id}
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"API returned status {response.status_code}: {response.text}")
+                
+                return response.json()
+        
+        # Run the async request
+        result = asyncio.run(fetch_killmails())
+        
+        logger.info(f"Killmail collection completed for system {system_id}: {result.get('message', 'Success')}")
+        
+        return {
+            "status": "success",
+            "system_id": system_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "result": result
+        }
+        
+    except Exception as exc:
+        logger.error(f"Killmail collection failed for system {system_id}: {str(exc)}", exc_info=True)
+        
+        # Retry the task with exponential backoff
+        try:
+            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        except self.MaxRetriesExceededError:
+            logger.error(f"Max retries exceeded for killmail collection of system {system_id}")
+            return {
+                "status": "failed",
+                "system_id": system_id,
+                "error": str(exc),
+                "timestamp": datetime.utcnow().isoformat(),
+                "retries": self.request.retries
+            }
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=300)
+def orchestrate_killmail_collection(self):
+    """
+    Orchestrate the staggered collection of killmails for all warzone systems.
+    
+    This task runs every hour and schedules individual system collections
+    with 5-minute intervals between each system to avoid API rate limits.
+    
+    Returns:
+        dict: Orchestration results
+    """
+    db = SessionLocal()
+    
+    try:
+        logger.info("Starting killmail collection orchestration")
+        
+        # Get all warzone system IDs
+        system_ids = get_warzone_system_ids(db)
+        
+        if not system_ids:
+            logger.warning("No warzone systems found in database")
+            return {
+                "status": "warning",
+                "message": "No warzone systems found in database",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        logger.info(f"Scheduling killmail collection for {len(system_ids)} systems")
+        
+        # Schedule individual system collections with 5-minute intervals
+        scheduled_tasks = []
+        base_time = datetime.utcnow()
+        
+        for i, system_id in enumerate(system_ids):
+            # Calculate execution time: start immediately for first system, then 5-minute intervals
+            execution_time = base_time + timedelta(minutes=i * 5)
+            
+            # Schedule the task
+            task_result = collect_system_killmails.apply_async(
+                args=[system_id],
+                eta=execution_time
+            )
+            
+            scheduled_tasks.append({
+                "system_id": system_id,
+                "task_id": task_result.id,
+                "scheduled_time": execution_time.isoformat()
+            })
+            
+            logger.debug(f"Scheduled system {system_id} for {execution_time}")
+        
+        total_duration_minutes = len(system_ids) * 5
+        completion_time = base_time + timedelta(minutes=total_duration_minutes)
+        
+        logger.info(
+            f"Killmail collection orchestration completed: "
+            f"{len(scheduled_tasks)} tasks scheduled, "
+            f"estimated completion at {completion_time}"
+        )
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "systems_scheduled": len(scheduled_tasks),
+            "total_duration_minutes": total_duration_minutes,
+            "estimated_completion": completion_time.isoformat(),
+            "scheduled_tasks": scheduled_tasks[:5]  # Only return first 5 for brevity
+        }
+        
+    except Exception as exc:
+        logger.error(f"Killmail orchestration failed: {str(exc)}", exc_info=True)
+        
+        # Retry the task
+        try:
+            raise self.retry(exc=exc, countdown=300)  # Retry after 5 minutes
+        except self.MaxRetriesExceededError:
+            logger.error("Max retries exceeded for killmail orchestration")
+            return {
+                "status": "failed",
+                "error": str(exc),
+                "timestamp": datetime.utcnow().isoformat(),
+                "retries": self.request.retries
+            }
+    
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def collect_general_warzone_data(self):
+    """
+    Collect general warzone data using the existing endpoint.
+    
+    This task calls the collect-data-now endpoint to gather faction warfare
+    statistics and system control data.
+    
+    Returns:
+        dict: Collection results
+    """
+    logger.info("Starting general warzone data collection")
+    
+    try:
+        # Make HTTP request to the existing endpoint
+        async def fetch_warzone_data():
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                response = await client.post(
+                    "http://localhost:8000/api/v1/faction-warfare/collect-data-now"
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"API returned status {response.status_code}: {response.text}")
+                
+                return response.json()
+        
+        # Run the async request
+        result = asyncio.run(fetch_warzone_data())
+        
+        logger.info(f"General warzone data collection completed: {result.get('message', 'Success')}")
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.utcnow().isoformat(),
+            "result": result
+        }
+        
+    except Exception as exc:
+        logger.error(f"General warzone data collection failed: {str(exc)}", exc_info=True)
+        
+        # Retry the task with exponential backoff
+        try:
+            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+        except self.MaxRetriesExceededError:
+            logger.error("Max retries exceeded for general warzone data collection")
+            return {
+                "status": "failed",
+                "error": str(exc),
+                "timestamp": datetime.utcnow().isoformat(),
+                "retries": self.request.retries
+            }
+
+
 # Configure periodic tasks
 celery_app.conf.beat_schedule = {
     'collect-faction-warfare-data': {
         'task': 'app.tasks.data_collection.collect_faction_warfare_data',
         'schedule': 3600.0,  # Every hour
+    },
+    'orchestrate-killmail-collection': {
+        'task': 'app.tasks.data_collection.orchestrate_killmail_collection',
+        'schedule': 3600.0,  # Every hour - starts the staggered collection
+    },
+    'collect-general-warzone-data': {
+        'task': 'app.tasks.data_collection.collect_general_warzone_data',
+        'schedule': 3600.0,  # Every hour - collects general warzone data
     },
     'cleanup-old-data': {
         'task': 'app.tasks.data_collection.cleanup_old_data',
