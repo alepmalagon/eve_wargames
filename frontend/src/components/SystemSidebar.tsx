@@ -22,7 +22,7 @@ interface SystemSidebarProps {
 }
 
 export const SystemSidebar: React.FC<SystemSidebarProps> = ({ selectedSystem, onClose, isFullscreen = false }) => {
-  const sidebarWidthClass = isFullscreen ? 'w-2/5' : 'w-80'
+  const sidebarWidthClass = isFullscreen ? 'w-full h-full' : 'w-80'
   
   if (!selectedSystem) {
     return (
