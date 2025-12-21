@@ -227,7 +227,7 @@ export const Dashboard: React.FC = () => {
                 {overview.warzone.total_systems} systems total
               </span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+            <div className="w-full bg-gray-700 rounded-full h-6 overflow-hidden">
               <div className="flex h-full">
                 <div
                   className="bg-red-500 transition-all duration-500 flex items-center justify-center"

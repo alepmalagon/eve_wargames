@@ -58,7 +58,7 @@
 .system-label {
   fill: white;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 24px;
+  font-size: 68px;
   font-weight: 600;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
   pointer-events: none; /* Allow clicks to pass through to the system group */
@@ -90,7 +90,7 @@
 .system-group.selected .system-label {
   fill: #ffffff;
   font-weight: 700;
-  font-size: 26px;
+  font-size: 68px;
   filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.9));
 }
 
