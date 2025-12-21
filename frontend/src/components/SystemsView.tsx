@@ -259,8 +259,8 @@ export const SystemsView: React.FC = () => {
   // Render fullscreen layout if in fullscreen mode
   if (isFullscreen && activeTab === 'map') {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-900 flex">
-        <div className="w-3/5 flex-shrink-0">
+      <div className="fixed inset-0 z-50 bg-gray-900 flex h-screen">
+        <div className="w-3/5 flex-shrink-0 h-full">
           <MapView
             systems={systems}
             selectedSystemId={selectedSystemId}
@@ -269,7 +269,7 @@ export const SystemsView: React.FC = () => {
             onToggleFullscreen={toggleFullscreen}
           />
         </div>
-        <div className="w-2/5 flex-shrink-0">
+        <div className="w-2/5 flex-shrink-0 h-full">
           <SystemSidebar
             selectedSystem={selectedSystem}
             onClose={handleCloseSidebar}
