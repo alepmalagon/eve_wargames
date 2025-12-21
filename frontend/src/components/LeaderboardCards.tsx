@@ -140,9 +140,26 @@ export const LeaderboardCards: React.FC = () => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Use useRef to track if we've already fetched data and to store the interval
+  const hasFetchedRef = React.useRef(false)
+  const intervalRef = React.useRef<NodeJS.Timeout | null>(null)
+  const lastFetchTimeRef = React.useRef<number>(0)
 
   useEffect(() => {
-    const fetchLeaderboardData = async () => {
+    const fetchLeaderboardData = async (force: boolean = false) => {
+      // Prevent unnecessary fetches - only fetch if:
+      // 1. We haven't fetched before, OR
+      // 2. It's been more than 10 minutes since last fetch, OR
+      // 3. Force refresh is requested
+      const now = Date.now()
+      const timeSinceLastFetch = now - lastFetchTimeRef.current
+      const tenMinutes = 10 * 60 * 1000
+      
+      if (!force && hasFetchedRef.current && timeSinceLastFetch < tenMinutes) {
+        return
+      }
+
       try {
         setLoading(true)
         // Use the backend proxy endpoint to avoid CORS issues
@@ -156,6 +173,8 @@ export const LeaderboardCards: React.FC = () => {
         const data = await response.json()
         setLeaderboardData(data)
         setError(null)
+        hasFetchedRef.current = true
+        lastFetchTimeRef.current = now
       } catch (err) {
         setError('Failed to fetch leaderboard data')
         console.error('Error fetching leaderboard:', err)
@@ -164,12 +183,28 @@ export const LeaderboardCards: React.FC = () => {
       }
     }
 
-    fetchLeaderboardData()
+    // Only fetch if we haven't fetched before
+    if (!hasFetchedRef.current) {
+      fetchLeaderboardData()
+    }
     
-    // Refresh every 10 minutes
-    const interval = setInterval(fetchLeaderboardData, 10 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [])
+    // Clear any existing interval to prevent duplicates
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+    }
+    
+    // Set up interval for automatic refresh every 10 minutes
+    intervalRef.current = setInterval(() => {
+      fetchLeaderboardData(true) // Force refresh on interval
+    }, 10 * 60 * 1000)
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, []) // Empty dependency array is correct here
 
   if (loading) {
     return (
