@@ -662,20 +662,20 @@ async def get_automation_status(db: Session = Depends(get_db)):
     
     try:
         from ..models.system import System
-        from ..models.killmail import ZkillboardKillmail
+        from ..models.killmail import Killmail
         from sqlalchemy import func
         
         # Get system count
         total_systems = db.query(System).count()
         
         # Get recent killmail activity (last 24 hours)
-        recent_killmails = db.query(func.count(ZkillboardKillmail.killmail_id)).filter(
-            ZkillboardKillmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
+        recent_killmails = db.query(func.count(Killmail.killmail_id)).filter(
+            Killmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
         ).scalar()
         
         # Get systems with recent killmail data
-        systems_with_recent_data = db.query(func.count(func.distinct(ZkillboardKillmail.system_id))).filter(
-            ZkillboardKillmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
+        systems_with_recent_data = db.query(func.count(func.distinct(Killmail.system_id))).filter(
+            Killmail.timestamp >= datetime.utcnow() - timedelta(hours=24)
         ).scalar()
         
         # Calculate estimated collection cycle time (5 minutes per system)
