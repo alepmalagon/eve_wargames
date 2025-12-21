@@ -268,7 +268,7 @@ def collect_system_killmails(self, system_id: int):
         async def fetch_killmails():
             async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(
-                    f"http://localhost:8000/api/v1/faction-warfare/collect-killmails-now",
+                    f"http://backend:8000/api/v1/faction-warfare/collect-killmails-now",
                     params={"system_id": system_id}
                 )
                 
@@ -412,7 +412,7 @@ def collect_general_warzone_data(self):
         async def fetch_warzone_data():
             async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(
-                    "http://localhost:8000/api/v1/faction-warfare/collect-data-now"
+                    "http://backend:8000/api/v1/faction-warfare/collect-data-now"
                 )
                 
                 if response.status_code != 200:
