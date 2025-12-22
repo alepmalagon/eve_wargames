@@ -338,3 +338,89 @@ async def get_system_killmail_stats(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching killmail statistics: {str(e)}")
+
+
+@router.get("/{system_id}/staged-corporations")
+async def get_staged_corporations(
+    system_id: int = Path(..., description="EVE system ID"),
+    time_window_hours: int = Query(default=168, ge=1, le=720, description="Time window in hours (1-720, default 168/7 days)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get corporations that are staged in a specific system.
+    
+    A corporation is considered "staged" in a system if that system has the highest
+    kill count for that corporation within the specified time window.
+    
+    Args:
+        system_id: EVE system ID
+        time_window_hours: Time window in hours to analyze (1-720, default 168/7 days)
+        
+    Returns:
+        List of corporations staged in the system with kill statistics and alliance info
+    """
+    # Verify system exists
+    system = db.query(System).filter(System.system_id == system_id).first()
+    
+    if not system:
+        raise HTTPException(status_code=404, detail="System not found")
+    
+    # Initialize killmail processor
+    processor = KillmailProcessor()
+    
+    try:
+        # Get corporations staged in this system
+        staged_corps = processor.get_corporations_staged_in_system(system_id, db, time_window_hours)
+        
+        return {
+            "system": {
+                "system_id": system.system_id,
+                "name": system.name
+            },
+            "time_window_hours": time_window_hours,
+            "staged_corporations": staged_corps,
+            "total_staged_corporations": len(staged_corps),
+            "generated_at": datetime.utcnow()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching staged corporations: {str(e)}")
+
+
+@router.get("/staging-systems/all")
+async def get_all_corporation_staging_systems(
+    time_window_hours: int = Query(default=168, ge=1, le=720, description="Time window in hours (1-720, default 168/7 days)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get staging systems for all corporations.
+    
+    Returns a mapping of corporations to their staging systems (the system where
+    they have the most kills within the specified time window).
+    
+    Args:
+        time_window_hours: Time window in hours to analyze (1-720, default 168/7 days)
+        
+    Returns:
+        Dictionary mapping corporation IDs to their staging system information
+    """
+    # Initialize killmail processor
+    processor = KillmailProcessor()
+    
+    try:
+        # Get all corporation staging systems
+        staging_systems = processor.get_corporation_staging_systems(db, time_window_hours)
+        
+        # Convert to list format for easier consumption
+        staging_list = list(staging_systems.values())
+        staging_list.sort(key=lambda x: x['kills'], reverse=True)
+        
+        return {
+            "time_window_hours": time_window_hours,
+            "corporation_staging_systems": staging_list,
+            "total_corporations": len(staging_list),
+            "generated_at": datetime.utcnow()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching corporation staging systems: {str(e)}")
