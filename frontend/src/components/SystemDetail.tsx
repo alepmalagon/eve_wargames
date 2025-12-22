@@ -16,6 +16,11 @@ import {
 } from 'lucide-react'
 import { PlayerCard, CorporationCard, AllianceCard, EntityList } from './EntityCards'
 import { 
+  getCorporationLogoUrl, 
+  getAllianceLogoUrl, 
+  getFallbackImageUrl 
+} from '../utils/eveImages'
+import { 
   LineChart, 
   Line, 
   XAxis, 
@@ -158,6 +163,41 @@ interface StagedCorporationsData {
   staged_corporations: StagedCorporation[]
   total_staged_corporations: number
   generated_at: string
+}
+
+// Component for displaying entity images with error handling
+const EntityImage: React.FC<{
+  src: string
+  fallbackSrc: string
+  alt: string
+  className?: string
+}> = ({ src, fallbackSrc, alt, className = "" }) => {
+  const [imageError, setImageError] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
+
+  const handleImageLoad = () => {
+    setImageLoading(false)
+  }
+
+  const handleImageError = () => {
+    setImageError(true)
+    setImageLoading(false)
+  }
+
+  return (
+    <div className={`relative ${className}`}>
+      {imageLoading && (
+        <div className="absolute inset-0 bg-gray-700 animate-pulse rounded-full"></div>
+      )}
+      <img
+        src={imageError ? fallbackSrc : src}
+        alt={alt}
+        className={`w-full h-full object-cover rounded-full ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200`}
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+    </div>
+  )
 }
 
 export const SystemDetail: React.FC = () => {
@@ -754,16 +794,32 @@ export const SystemDetail: React.FC = () => {
                       <span className="text-gray-300 font-medium">#{index + 1}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex flex-col">
-                        <span className="text-white font-medium">{corp.corporation_name}</span>
-                        <span className="text-gray-400 text-sm">[{corp.ticker}]</span>
+                      <div className="flex items-center gap-3">
+                        <EntityImage
+                          src={getCorporationLogoUrl(corp.corporation_id, 64)}
+                          fallbackSrc={getFallbackImageUrl('corporation')}
+                          alt={`${corp.corporation_name} logo`}
+                          className="w-10 h-10 flex-shrink-0"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-white font-medium">{corp.corporation_name}</span>
+                          <span className="text-gray-400 text-sm">[{corp.ticker}]</span>
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      {corp.alliance_name ? (
-                        <div className="flex flex-col">
-                          <span className="text-purple-400 font-medium">{corp.alliance_name}</span>
-                          <span className="text-gray-400 text-sm">[{corp.alliance_ticker}]</span>
+                      {corp.alliance_name && corp.alliance_id ? (
+                        <div className="flex items-center gap-3">
+                          <EntityImage
+                            src={getAllianceLogoUrl(corp.alliance_id, 64)}
+                            fallbackSrc={getFallbackImageUrl('alliance')}
+                            alt={`${corp.alliance_name} logo`}
+                            className="w-10 h-10 flex-shrink-0"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-purple-400 font-medium">{corp.alliance_name}</span>
+                            <span className="text-gray-400 text-sm">[{corp.alliance_ticker}]</span>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-500 italic">No Alliance</span>
