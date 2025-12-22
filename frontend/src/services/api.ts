@@ -55,6 +55,10 @@ export const systemsApi = {
   getSystemLiveData: (systemId: number) => api.get(`/systems/${systemId}/live`),
   getSystemKillmailStats: (systemId: number, timeWindowHours: number = 24) => 
     api.get(`/systems/${systemId}/killmail-stats?time_window_hours=${timeWindowHours}`),
+  getStagedCorporations: (systemId: number, timeWindowHours: number = 168) => 
+    api.get(`/systems/${systemId}/staged-corporations?time_window_hours=${timeWindowHours}`),
+  getAllCorporationStagingSystems: (timeWindowHours: number = 168) => 
+    api.get(`/systems/staging-systems/all?time_window_hours=${timeWindowHours}`),
   getContestedSystems: () => api.get('/systems/contested/'),
   getSystemsByFaction: (factionId: number) => api.get(`/systems/faction/${factionId}`),
 }

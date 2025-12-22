@@ -579,3 +579,114 @@ class KillmailProcessor:
             }
             for stat in alliance_stats
         ]
+    
+    def get_corporation_staging_systems(
+        self,
+        db: Session,
+        time_window_hours: int = 168  # Default to 7 days
+    ) -> Dict[int, Dict]:
+        """
+        Get the staging system for each corporation based on where they have the most kills.
+        
+        Args:
+            db: Database session
+            time_window_hours: Time window to consider for staging analysis (default 7 days)
+            
+        Returns:
+            Dictionary mapping corporation_id to staging system info
+        """
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=time_window_hours)
+        
+        # Query to get kill counts per corporation per system
+        corp_system_stats = db.query(
+            Corporation.corporation_id,
+            Corporation.corporation_name,
+            Corporation.ticker,
+            Alliance.alliance_id,
+            Alliance.alliance_name,
+            Alliance.ticker.label('alliance_ticker'),
+            Killmail.system_id,
+            System.name.label('system_name'),
+            func.count(KillmailAttacker.id).label('kills'),
+            func.sum(Killmail.total_value).label('isk_killed')
+        ).join(
+            KillmailAttacker, Corporation.corporation_id == KillmailAttacker.corporation_id
+        ).join(
+            Killmail, KillmailAttacker.killmail_id == Killmail.killmail_id
+        ).join(
+            System, Killmail.system_id == System.system_id
+        ).outerjoin(
+            Alliance, Corporation.alliance_id == Alliance.alliance_id
+        ).filter(
+            and_(
+                Killmail.timestamp >= start_time,
+                Killmail.timestamp <= end_time,
+                KillmailAttacker.corporation_id.isnot(None)
+            )
+        ).group_by(
+            Corporation.corporation_id,
+            Corporation.corporation_name,
+            Corporation.ticker,
+            Alliance.alliance_id,
+            Alliance.alliance_name,
+            Alliance.ticker,
+            Killmail.system_id,
+            System.name
+        ).all()
+        
+        # Group by corporation and find the system with most kills for each
+        corp_staging = {}
+        corp_systems = defaultdict(list)
+        
+        for stat in corp_system_stats:
+            corp_systems[stat.corporation_id].append({
+                'corporation_id': stat.corporation_id,
+                'corporation_name': stat.corporation_name,
+                'ticker': stat.ticker,
+                'alliance_id': stat.alliance_id,
+                'alliance_name': stat.alliance_name,
+                'alliance_ticker': stat.alliance_ticker,
+                'system_id': stat.system_id,
+                'system_name': stat.system_name,
+                'kills': stat.kills,
+                'isk_killed': stat.isk_killed or 0.0
+            })
+        
+        # Find staging system (system with most kills) for each corporation
+        for corp_id, systems in corp_systems.items():
+            staging_system = max(systems, key=lambda x: x['kills'])
+            corp_staging[corp_id] = staging_system
+        
+        return corp_staging
+    
+    def get_corporations_staged_in_system(
+        self,
+        system_id: int,
+        db: Session,
+        time_window_hours: int = 168  # Default to 7 days
+    ) -> List[Dict]:
+        """
+        Get corporations that are staged in a specific system.
+        
+        Args:
+            system_id: System ID to check for staged corporations
+            db: Database session
+            time_window_hours: Time window to consider for staging analysis
+            
+        Returns:
+            List of corporations staged in the system with their stats
+        """
+        # Get all corporation staging systems
+        all_staging = self.get_corporation_staging_systems(db, time_window_hours)
+        
+        # Filter for corporations staged in the specified system
+        staged_corps = []
+        for corp_id, staging_info in all_staging.items():
+            if staging_info['system_id'] == system_id:
+                staged_corps.append(staging_info)
+        
+        # Sort by kill count descending
+        staged_corps.sort(key=lambda x: x['kills'], reverse=True)
+        
+        return staged_corps

@@ -136,22 +136,48 @@ interface KillmailStats {
   generated_at: string
 }
 
+interface StagedCorporation {
+  corporation_id: number
+  corporation_name: string
+  ticker: string
+  alliance_id: number | null
+  alliance_name: string | null
+  alliance_ticker: string | null
+  system_id: number
+  system_name: string
+  kills: number
+  isk_killed: number
+}
+
+interface StagedCorporationsData {
+  system: {
+    system_id: number
+    name: string
+  }
+  time_window_hours: number
+  staged_corporations: StagedCorporation[]
+  total_staged_corporations: number
+  generated_at: string
+}
+
 export const SystemDetail: React.FC = () => {
   const { systemId } = useParams<{ systemId: string }>()
   const navigate = useNavigate()
   const [systemDetails, setSystemDetails] = useState<SystemDetails | null>(null)
   const [trendData, setTrendData] = useState<TrendData | null>(null)
   const [killmailStats, setKillmailStats] = useState<KillmailStats | null>(null)
+  const [stagedCorporations, setStagedCorporations] = useState<StagedCorporationsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState(24)
+  const [stagingTimeRange, setStagingTimeRange] = useState(168) // 7 days for staging analysis
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (systemId) {
       fetchSystemData()
     }
-  }, [systemId, timeRange])
+  }, [systemId, timeRange, stagingTimeRange])
 
   const fetchSystemData = async () => {
     if (!systemId) return
@@ -160,10 +186,11 @@ export const SystemDetail: React.FC = () => {
       setLoading(true)
       setError(null)
 
-      const [detailsResponse, trendsResponse, killmailStatsResponse, frontlineResponse] = await Promise.all([
+      const [detailsResponse, trendsResponse, killmailStatsResponse, stagedCorpsResponse, frontlineResponse] = await Promise.all([
         systemsApi.getSystemDetails(parseInt(systemId)),
         systemsApi.getSystemTrends(parseInt(systemId), timeRange),
         systemsApi.getSystemKillmailStats(parseInt(systemId), timeRange).catch(() => null),
+        systemsApi.getStagedCorporations(parseInt(systemId), stagingTimeRange).catch(() => null),
         frontlinesApi.getSystemInfo(parseInt(systemId)).catch(err => {
           console.warn('Failed to fetch frontline data:', err)
           return null
@@ -180,6 +207,7 @@ export const SystemDetail: React.FC = () => {
       setSystemDetails(systemDetailsWithFrontline)
       setTrendData(trendsResponse.data)
       setKillmailStats(killmailStatsResponse?.data || null)
+      setStagedCorporations(stagedCorpsResponse?.data || null)
     } catch (err) {
       setError('Failed to fetch system data')
       console.error('Error fetching system data:', err)
@@ -676,6 +704,95 @@ export const SystemDetail: React.FC = () => {
           <div className="mt-4 text-center">
             <p className="text-gray-400 text-sm">
               Data generated at: {new Date(killmailStats.generated_at).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Staged Corporations */}
+      {stagedCorporations && stagedCorporations.staged_corporations.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-white">
+              Staged Corporations (Last {Math.floor(stagedCorporations.time_window_hours / 24)} days)
+            </h2>
+            <div className="flex items-center gap-2">
+              <select
+                value={stagingTimeRange}
+                onChange={(e) => setStagingTimeRange(parseInt(e.target.value))}
+                className="bg-gray-700 text-white px-3 py-1 rounded border border-gray-600 text-sm"
+              >
+                <option value={168}>7 days</option>
+                <option value={336}>14 days</option>
+                <option value={720}>30 days</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="mb-4">
+            <p className="text-gray-400 text-sm">
+              Corporations that have their highest kill activity in this system. 
+              These are likely using {systemDetails?.name} as their staging area.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-3 px-4">Rank</th>
+                  <th className="text-left py-3 px-4">Corporation</th>
+                  <th className="text-left py-3 px-4">Alliance</th>
+                  <th className="text-left py-3 px-4">Kills</th>
+                  <th className="text-left py-3 px-4">ISK Destroyed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stagedCorporations.staged_corporations.map((corp, index) => (
+                  <tr key={corp.corporation_id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="py-3 px-4">
+                      <span className="text-gray-300 font-medium">#{index + 1}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-col">
+                        <span className="text-white font-medium">{corp.corporation_name}</span>
+                        <span className="text-gray-400 text-sm">[{corp.ticker}]</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      {corp.alliance_name ? (
+                        <div className="flex flex-col">
+                          <span className="text-purple-400 font-medium">{corp.alliance_name}</span>
+                          <span className="text-gray-400 text-sm">[{corp.alliance_ticker}]</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 italic">No Alliance</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-400 font-medium">{corp.kills}</span>
+                        <span className="text-gray-400 text-sm">kills</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-yellow-400 font-medium">{formatISK(corp.isk_killed)}</span>
+                        <span className="text-gray-400 text-sm">ISK</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 text-center">
+            <p className="text-gray-400 text-sm">
+              Showing {stagedCorporations.total_staged_corporations} corporation{stagedCorporations.total_staged_corporations !== 1 ? 's' : ''} staged in this system
+            </p>
+            <p className="text-gray-400 text-sm">
+              Data generated at: {new Date(stagedCorporations.generated_at).toLocaleString()}
             </p>
           </div>
         </div>
