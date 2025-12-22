@@ -32,11 +32,11 @@ class Settings(BaseSettings):
         description="Database connection URL"
     )
     DB_POOL_SIZE: int = Field(
-        default=25,
+        default=50,
         description="Database connection pool size"
     )
     DB_MAX_OVERFLOW: int = Field(
-        default=25,
+        default=50,
         description="Database connection pool max overflow"
     )
     DB_POOL_TIMEOUT: int = Field(

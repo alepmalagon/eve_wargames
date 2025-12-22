@@ -6,6 +6,7 @@ Provides endpoints for system-specific faction warfare data.
 
 from typing import List, Optional
 from datetime import datetime, timedelta
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
@@ -13,7 +14,10 @@ from sqlalchemy import desc, and_
 from ..database import get_db
 from ..models.system import System, SystemSnapshot
 from ..services.esi_client import esi_client
+
 from ..services.killmail_processor import KillmailProcessor
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -22,6 +26,8 @@ router = APIRouter()
 async def get_systems(
     faction_id: Optional[int] = Query(None, description="Filter by controlling faction ID"),
     contested_only: bool = Query(False, description="Show only contested systems"),
+    limit: int = Query(100, description="Maximum number of systems to return", ge=1, le=500),
+    offset: int = Query(0, description="Number of systems to skip", ge=0),
     db: Session = Depends(get_db)
 ):
     """
@@ -30,35 +36,56 @@ async def get_systems(
     Args:
         faction_id: Filter by controlling faction (500002 for Minmatar, 500003 for Amarr)
         contested_only: Show only contested systems
+        limit: Maximum number of systems to return (default: 100, max: 500)
+        offset: Number of systems to skip for pagination
         
     Returns:
         List of systems with current control status
     """
-    query = db.query(System)
+    import time
+    start_time = time.time()
     
-    if faction_id:
-        query = query.filter(System.controlling_faction_id == faction_id)
-    
-    if contested_only:
-        query = query.filter(System.contested == 1)
-    
-    systems = query.all()
-    
-    return [
-        {
-            "system_id": system.system_id,
-            "name": system.name,
-            "security_status": system.security_status,
-            "controlling_faction_id": system.controlling_faction_id,
-            "contested": bool(system.contested),
-            "capture_percent": system.capture_percent,
-            "advantage_percent": system.advantage_percent,
-            "minmatar_advantage": system.minmatar_advantage,
-            "amarr_advantage": system.amarr_advantage,
-            "updated_at": system.updated_at
-        }
-        for system in systems
-    ]
+    try:
+        query = db.query(System)
+        
+        if faction_id:
+            query = query.filter(System.controlling_faction_id == faction_id)
+        
+        if contested_only:
+            query = query.filter(System.contested == 1)
+        
+        # Add ordering for consistent pagination
+        query = query.order_by(System.system_id)
+        
+        # Apply pagination
+        query = query.offset(offset).limit(limit)
+        
+        systems = query.all()
+        
+        query_time = time.time() - start_time
+        if query_time > 1.0:
+            logger.warning(f"Slow systems query: {query_time:.2f}s for {len(systems)} systems")
+        
+        return [
+            {
+                "system_id": system.system_id,
+                "name": system.name,
+                "security_status": system.security_status,
+                "controlling_faction_id": system.controlling_faction_id,
+                "contested": bool(system.contested),
+                "capture_percent": system.capture_percent,
+                "advantage_percent": system.advantage_percent,
+                "minmatar_advantage": system.minmatar_advantage,
+                "amarr_advantage": system.amarr_advantage,
+                "updated_at": system.updated_at
+            }
+            for system in systems
+        ]
+        
+    except Exception as e:
+        query_time = time.time() - start_time
+        logger.error(f"Systems query failed after {query_time:.2f}s: {e}")
+        raise
 
 
 @router.get("/{system_id}")
