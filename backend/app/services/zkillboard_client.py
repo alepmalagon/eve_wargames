@@ -7,23 +7,79 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Global rate limiter to coordinate all instances
+class GlobalRateLimiter:
+    """Global rate limiter to ensure only one request to Zkillboard API at a time."""
+    
+    def __init__(self, min_interval: float = 30.0, max_concurrent: int = 1):
+        self.min_interval = min_interval
+        self.last_request_time = 0
+        self.lock = asyncio.Lock()
+        self.semaphore = asyncio.Semaphore(max_concurrent)  # Only allow 1 concurrent request
+        self.active_requests = 0
+    
+    async def acquire(self):
+        """Acquire permission to make a request, enforcing rate limits and concurrency."""
+        # First acquire semaphore to limit concurrent requests
+        await self.semaphore.acquire()
+        
+        try:
+            async with self.lock:
+                self.active_requests += 1
+                logger.info(f"Zkillboard API request starting (active: {self.active_requests})")
+                
+                current_time = time.time()
+                time_since_last = current_time - self.last_request_time
+                
+                if time_since_last < self.min_interval:
+                    sleep_time = self.min_interval - time_since_last
+                    logger.info(f"Global rate limiting: sleeping for {sleep_time:.1f} seconds")
+                    await asyncio.sleep(sleep_time)
+                
+                self.last_request_time = time.time()
+        except Exception:
+            # If something goes wrong, make sure to release the semaphore
+            self.semaphore.release()
+            raise
+    
+    def release(self):
+        """Release the request slot."""
+        self.active_requests = max(0, self.active_requests - 1)
+        logger.info(f"Zkillboard API request completed (active: {self.active_requests})")
+        self.semaphore.release()
+
+# Global instance shared across all ZkillboardClient instances
+# Will be initialized with config values when first accessed
+_global_rate_limiter = None
+
+def _get_global_rate_limiter():
+    """Get or create the global rate limiter with config values."""
+    global _global_rate_limiter
+    if _global_rate_limiter is None:
+        from ..config import settings
+        _global_rate_limiter = GlobalRateLimiter(
+            min_interval=float(settings.ZKILLBOARD_RATE_LIMIT_SECONDS),
+            max_concurrent=settings.ZKILLBOARD_MAX_CONCURRENT_REQUESTS
+        )
+        logger.info(f"Initialized Zkillboard rate limiter: {settings.ZKILLBOARD_RATE_LIMIT_SECONDS}s interval, {settings.ZKILLBOARD_MAX_CONCURRENT_REQUESTS} max concurrent")
+    return _global_rate_limiter
+
 
 class ZkillboardClient:
     """
     Client for interacting with the Zkillboard API.
     
     Implements proper rate limiting and error handling according to Zkillboard API guidelines:
-    - 30 seconds minimum between requests
+    - 30 seconds minimum between requests (enforced globally across all instances)
     - Proper User-Agent header
     - gzip compression
     - Maximum 1000 killmails per request
+    - Prevents concurrent API abuse that could lead to bans
     """
     
     def __init__(self):
         self.base_url = "https://zkillboard.com/api"
         self.session: Optional[aiohttp.ClientSession] = None
-        self.last_request_time = 0
-        self.min_request_interval = 30  # 30 seconds between requests
         
         # Headers as required by Zkillboard API
         self.headers = {
@@ -56,16 +112,8 @@ class ZkillboardClient:
             await self.session.close()
     
     async def _rate_limit(self):
-        """Enforce rate limiting between requests"""
-        current_time = time.time()
-        time_since_last_request = current_time - self.last_request_time
-        
-        if time_since_last_request < self.min_request_interval:
-            sleep_time = self.min_request_interval - time_since_last_request
-            logger.info(f"Rate limiting: sleeping for {sleep_time:.1f} seconds")
-            await asyncio.sleep(sleep_time)
-        
-        self.last_request_time = time.time()
+        """Enforce global rate limiting between requests"""
+        await _get_global_rate_limiter().acquire()
     
     async def _make_request(self, url: str, max_retries: int = 3) -> List[Dict]:
         """
@@ -81,43 +129,47 @@ class ZkillboardClient:
         await self._ensure_session()
         await self._rate_limit()
         
-        for attempt in range(max_retries + 1):
-            try:
-                logger.info(f"Making request to: {url} (attempt {attempt + 1})")
-                
-                async with self.session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        logger.info(f"Successfully fetched {len(data)} killmails")
-                        return data
-                    elif response.status == 429:
-                        # Rate limited - wait longer
-                        wait_time = 60 * (attempt + 1)
-                        logger.warning(f"Rate limited (429), waiting {wait_time} seconds")
-                        await asyncio.sleep(wait_time)
-                        continue
-                    elif response.status == 404:
-                        # No data available
-                        logger.info("No killmail data available (404)")
-                        return []
-                    else:
-                        logger.error(f"HTTP {response.status}: {await response.text()}")
-                        if attempt == max_retries:
-                            raise Exception(f"HTTP {response.status} after {max_retries} retries")
-                        
-            except asyncio.TimeoutError:
-                logger.warning(f"Request timeout (attempt {attempt + 1})")
-                if attempt == max_retries:
-                    raise Exception("Request timeout after retries")
-                await asyncio.sleep(5 * (attempt + 1))
-                
-            except Exception as e:
-                logger.error(f"Request error (attempt {attempt + 1}): {e}")
-                if attempt == max_retries:
-                    raise
-                await asyncio.sleep(5 * (attempt + 1))
-        
-        return []
+        try:
+            for attempt in range(max_retries + 1):
+                try:
+                    logger.info(f"Making request to: {url} (attempt {attempt + 1})")
+                    
+                    async with self.session.get(url) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            logger.info(f"Successfully fetched {len(data)} killmails")
+                            return data
+                        elif response.status == 429:
+                            # Rate limited - wait longer
+                            wait_time = 60 * (attempt + 1)
+                            logger.warning(f"Rate limited (429), waiting {wait_time} seconds")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        elif response.status == 404:
+                            # No data available
+                            logger.info("No killmail data available (404)")
+                            return []
+                        else:
+                            logger.error(f"HTTP {response.status}: {await response.text()}")
+                            if attempt == max_retries:
+                                raise Exception(f"HTTP {response.status} after {max_retries} retries")
+                            
+                except asyncio.TimeoutError:
+                    logger.warning(f"Request timeout (attempt {attempt + 1})")
+                    if attempt == max_retries:
+                        raise Exception("Request timeout after retries")
+                    await asyncio.sleep(5 * (attempt + 1))
+                    
+                except Exception as e:
+                    logger.error(f"Request error (attempt {attempt + 1}): {e}")
+                    if attempt == max_retries:
+                        raise
+                    await asyncio.sleep(5 * (attempt + 1))
+            
+            return []
+        finally:
+            # Always release the rate limiter slot
+            _get_global_rate_limiter().release()
     
     async def get_system_kills(
         self, 

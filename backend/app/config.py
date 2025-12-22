@@ -90,6 +90,16 @@ class Settings(BaseSettings):
         description="Number of days to retain system control data"
     )
     
+    # Zkillboard API settings
+    ZKILLBOARD_RATE_LIMIT_SECONDS: int = Field(
+        default=30,
+        description="Minimum seconds between Zkillboard API requests (prevents API bans)"
+    )
+    ZKILLBOARD_MAX_CONCURRENT_REQUESTS: int = Field(
+        default=1,
+        description="Maximum concurrent requests to Zkillboard API (should be 1 to prevent bans)"
+    )
+    
     # Celery settings
     CELERY_BROKER_URL: str = Field(
         default="redis://localhost:6379/1",
