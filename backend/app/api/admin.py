@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from ..database import get_db, get_connection_pool_status, engine
+from ..database import get_db, get_connection_pool_status, get_detailed_connection_info, engine
 
 logger = logging.getLogger(__name__)
 
@@ -172,5 +172,160 @@ def _get_pool_recommendations(utilization_percent: float, pool_stats: dict) -> l
     checked_out = pool_stats.get("checked_out_connections", 0)
     if checked_out > 20:
         recommendations.append(f"High number of checked out connections ({checked_out}). Investigate active queries.")
+    
+    return recommendations
+
+
+@router.get("/database/diagnostics")
+async def get_database_diagnostics():
+    """
+    Get comprehensive database diagnostics including performance metrics.
+    
+    Returns:
+        dict: Detailed database diagnostics and performance information
+    """
+    try:
+        # Get detailed connection info
+        connection_info = get_detailed_connection_info()
+        
+        # Test database connectivity and measure response time
+        start_time = datetime.utcnow()
+        db = next(get_db())
+        try:
+            # Simple query to test database responsiveness
+            result = db.execute("SELECT 1 as test").fetchone()
+            db_response_time = (datetime.utcnow() - start_time).total_seconds()
+            db_responsive = True
+        except Exception as e:
+            db_response_time = (datetime.utcnow() - start_time).total_seconds()
+            db_responsive = False
+            logger.error(f"Database connectivity test failed: {e}")
+        finally:
+            db.close()
+        
+        # Get system information
+        diagnostics = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": {
+                "responsive": db_responsive,
+                "response_time_seconds": round(db_response_time, 3),
+                "connection_pool": connection_info
+            },
+            "performance_status": _get_performance_status(connection_info, db_response_time),
+            "recommendations": _get_performance_recommendations(connection_info, db_response_time)
+        }
+        
+        return diagnostics
+        
+    except Exception as e:
+        logger.error(f"Failed to get database diagnostics: {e}")
+        raise HTTPException(status_code=500, detail=f"Diagnostics failed: {str(e)}")
+
+
+@router.get("/database/active-connections")
+async def get_active_connections():
+    """
+    Get information about currently active database connections.
+    
+    Returns:
+        dict: Information about active connections and their states
+    """
+    try:
+        db = next(get_db())
+        try:
+            # Query to get active connections (PostgreSQL specific)
+            active_connections_query = """
+            SELECT 
+                pid,
+                usename,
+                application_name,
+                client_addr,
+                state,
+                query_start,
+                state_change,
+                EXTRACT(EPOCH FROM (now() - query_start)) as query_duration_seconds,
+                LEFT(query, 100) as query_preview
+            FROM pg_stat_activity 
+            WHERE state != 'idle' 
+            AND pid != pg_backend_pid()
+            ORDER BY query_start DESC
+            LIMIT 20
+            """
+            
+            result = db.execute(active_connections_query).fetchall()
+            
+            connections = []
+            for row in result:
+                connections.append({
+                    "pid": row[0],
+                    "username": row[1],
+                    "application": row[2],
+                    "client_addr": str(row[3]) if row[3] else None,
+                    "state": row[4],
+                    "query_start": row[5].isoformat() if row[5] else None,
+                    "state_change": row[6].isoformat() if row[6] else None,
+                    "query_duration_seconds": round(float(row[7]), 2) if row[7] else None,
+                    "query_preview": row[8]
+                })
+            
+            pool_status = get_connection_pool_status()
+            
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "pool_status": pool_status,
+                "active_connections_count": len(connections),
+                "active_connections": connections,
+                "long_running_queries": [
+                    conn for conn in connections 
+                    if conn.get("query_duration_seconds", 0) > 30
+                ]
+            }
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Failed to get active connections: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get active connections: {str(e)}")
+
+
+def _get_performance_status(connection_info: dict, response_time: float) -> str:
+    """Determine overall database performance status."""
+    utilization = connection_info.get("utilization_percent", 0)
+    
+    if response_time > 5.0:
+        return "critical"
+    elif response_time > 2.0 or utilization > 80:
+        return "warning"
+    elif utilization > 60:
+        return "degraded"
+    else:
+        return "healthy"
+
+
+def _get_performance_recommendations(connection_info: dict, response_time: float) -> list:
+    """Get performance recommendations based on current metrics."""
+    recommendations = []
+    
+    utilization = connection_info.get("utilization_percent", 0)
+    checked_out = connection_info.get("checked_out_connections", 0)
+    
+    if response_time > 5.0:
+        recommendations.append("Database response time is very slow (>5s). Check database server resources.")
+    elif response_time > 2.0:
+        recommendations.append("Database response time is slow (>2s). Monitor database performance.")
+    
+    if utilization > 90:
+        recommendations.append("Connection pool utilization is critical (>90%). Consider increasing pool size.")
+    elif utilization > 75:
+        recommendations.append("Connection pool utilization is high (>75%). Monitor for potential exhaustion.")
+    
+    if checked_out > 80:
+        recommendations.append(f"Very high number of active connections ({checked_out}). Check for connection leaks.")
+    elif checked_out > 50:
+        recommendations.append(f"High number of active connections ({checked_out}). Monitor query performance.")
+    
+    if not recommendations:
+        recommendations.append("Database performance appears healthy.")
     
     return recommendations
