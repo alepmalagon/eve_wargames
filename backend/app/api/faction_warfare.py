@@ -463,7 +463,11 @@ async def collect_killmails_immediately(
     Returns:
         Collection result information including processing statistics
     """
+    from ..database import log_connection_pool_status
+    
     logger.info(f"Starting killmail collection for system {system_id}")
+    log_connection_pool_status()  # Log pool status at start
+    
     try:
         from ..services.zkillboard_client import ZkillboardClient
         from ..services.killmail_processor import KillmailProcessor
@@ -519,6 +523,7 @@ async def collect_killmails_immediately(
                 f"{len(killmails)} processed, {result.get('stored', 0)} stored, "
                 f"{result.get('skipped', 0)} skipped, {result.get('errors', 0)} errors"
             )
+            log_connection_pool_status()  # Log pool status at completion
             
             return {
                 "status": "completed",
@@ -536,6 +541,7 @@ async def collect_killmails_immediately(
         raise
     except Exception as e:
         logger.error(f"Failed to collect killmails for system {system_id}: {str(e)}", exc_info=True)
+        log_connection_pool_status()  # Log pool status on error
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to collect killmails: {str(e)}")
 

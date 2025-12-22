@@ -31,6 +31,22 @@ class Settings(BaseSettings):
         default="postgresql://eve_user:eve_password@localhost:5432/eve_wargames",
         description="Database connection URL"
     )
+    DB_POOL_SIZE: int = Field(
+        default=25,
+        description="Database connection pool size"
+    )
+    DB_MAX_OVERFLOW: int = Field(
+        default=25,
+        description="Database connection pool max overflow"
+    )
+    DB_POOL_TIMEOUT: int = Field(
+        default=30,
+        description="Database connection pool timeout in seconds"
+    )
+    DB_POOL_RECYCLE: int = Field(
+        default=3600,
+        description="Database connection recycle time in seconds (1 hour)"
+    )
     
     # Redis settings
     REDIS_URL: str = Field(
