@@ -11,6 +11,7 @@ import httpx
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from celery import Celery
+from celery.exceptions import Ignore
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -22,6 +23,53 @@ from ..services.data_processor import DataProcessor
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def should_skip_stale_task(task_eta=None, max_age_minutes=90):
+    """
+    Check if a task should be skipped because it's too old.
+    
+    This prevents execution of tasks that were scheduled during downtime
+    and are no longer relevant.
+    
+    Args:
+        task_eta: Task's original execution time (ETA)
+        max_age_minutes: Maximum age in minutes before task is considered stale
+        
+    Returns:
+        bool: True if task should be skipped
+    """
+    if task_eta is None:
+        return False
+        
+    now = datetime.utcnow()
+    if isinstance(task_eta, str):
+        task_eta = datetime.fromisoformat(task_eta.replace('Z', '+00:00'))
+    
+    age_minutes = (now - task_eta).total_seconds() / 60
+    
+    if age_minutes > max_age_minutes:
+        logger.warning(f"Skipping stale task: scheduled {age_minutes:.1f} minutes ago (max: {max_age_minutes})")
+        return True
+        
+    return False
+
+
+def get_task_deduplication_key(task_name, *args, **kwargs):
+    """
+    Generate a deduplication key for tasks to prevent duplicates.
+    
+    Args:
+        task_name: Name of the task
+        *args: Task arguments
+        **kwargs: Task keyword arguments
+        
+    Returns:
+        str: Deduplication key
+    """
+    import hashlib
+    key_data = f"{task_name}:{str(args)}:{str(sorted(kwargs.items()))}"
+    return hashlib.md5(key_data.encode()).hexdigest()[:16]
 
 # Initialize Celery app
 celery_app = Celery(
@@ -42,10 +90,13 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,  # 25 minutes
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
+    task_expires=7200,  # Tasks expire after 2 hours
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
 )
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
 def collect_faction_warfare_data(self):
     """
     Collect faction warfare data from ESI API and store in database.
@@ -58,10 +109,17 @@ def collect_faction_warfare_data(self):
     Returns:
         dict: Collection results and statistics
     """
-    db = SessionLocal()
-    processor = DataProcessor(db)
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=90):
+        logger.info("Skipping stale faction warfare data collection task")
+        raise Ignore("Task is too old and no longer relevant")
     
+    db = None
     try:
+        db = SessionLocal()
+        processor = DataProcessor(db)
+        
         logger.info("Starting faction warfare data collection")
         
         # Check if we already have recent data (within last 50 minutes)
@@ -113,9 +171,9 @@ def collect_faction_warfare_data(self):
     except Exception as exc:
         logger.error(f"Data collection failed: {str(exc)}", exc_info=True)
         
-        # Retry the task with exponential backoff
+        # Retry the task only once with fixed delay
         try:
-            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+            raise self.retry(exc=exc, countdown=300)  # Fixed 5-minute delay
         except self.MaxRetriesExceededError:
             logger.error("Max retries exceeded for data collection task")
             return {
@@ -126,7 +184,8 @@ def collect_faction_warfare_data(self):
             }
     
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @celery_app.task(bind=True)
@@ -140,9 +199,15 @@ def cleanup_old_data(self, days_to_keep: int = 90):
     Returns:
         dict: Cleanup results
     """
-    db = SessionLocal()
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=120):  # 2 hours for cleanup tasks
+        logger.info("Skipping stale cleanup task")
+        raise Ignore("Task is too old and no longer relevant")
     
+    db = None
     try:
+        db = SessionLocal()
         cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
         
         # Clean up old system snapshots
@@ -175,7 +240,8 @@ def cleanup_old_data(self, days_to_keep: int = 90):
         }
     
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 @celery_app.task(bind=True)
@@ -186,6 +252,12 @@ def health_check_task(self):
     Returns:
         dict: Health check results
     """
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=30):  # 30 minutes for health checks
+        logger.info("Skipping stale health check task")
+        raise Ignore("Task is too old and no longer relevant")
+    
     results = {
         "timestamp": datetime.utcnow().isoformat(),
         "database": False,
@@ -194,13 +266,16 @@ def health_check_task(self):
     }
     
     # Check database connectivity
+    db = None
     try:
         db = SessionLocal()
         db.execute("SELECT 1")
         results["database"] = True
-        db.close()
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
+    finally:
+        if db:
+            db.close()
     
     # Check ESI API connectivity
     try:
@@ -215,15 +290,18 @@ def health_check_task(self):
         logger.error(f"ESI API health check failed: {e}")
     
     # Check for recent data
+    db = None
     try:
         db = SessionLocal()
         recent_snapshot = db.query(FactionWarfareSnapshot).filter(
             FactionWarfareSnapshot.timestamp >= datetime.utcnow() - timedelta(hours=2)
         ).first()
         results["recent_data"] = recent_snapshot is not None
-        db.close()
     except Exception as e:
         logger.error(f"Recent data check failed: {e}")
+    finally:
+        if db:
+            db.close()
     
     return results
 
@@ -248,7 +326,7 @@ def get_warzone_system_ids(db: Session) -> List[int]:
         return []
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
 def collect_system_killmails(self, system_id: int):
     """
     Collect killmail data for a specific system.
@@ -261,6 +339,12 @@ def collect_system_killmails(self, system_id: int):
     Returns:
         dict: Collection results
     """
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=90):
+        logger.info(f"Skipping stale killmail collection task for system {system_id}")
+        raise Ignore("Task is too old and no longer relevant")
+    
     logger.info(f"Starting killmail collection for system {system_id}")
     
     try:
@@ -292,9 +376,9 @@ def collect_system_killmails(self, system_id: int):
     except Exception as exc:
         logger.error(f"Killmail collection failed for system {system_id}: {str(exc)}", exc_info=True)
         
-        # Retry the task with exponential backoff
+        # Retry the task only once with fixed delay
         try:
-            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+            raise self.retry(exc=exc, countdown=300)  # Fixed 5-minute delay
         except self.MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for killmail collection of system {system_id}")
             return {
@@ -306,7 +390,7 @@ def collect_system_killmails(self, system_id: int):
             }
 
 
-@celery_app.task(bind=True, max_retries=2, default_retry_delay=300)
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
 def orchestrate_killmail_collection(self):
     """
     Orchestrate the staggered collection of killmails for all warzone systems.
@@ -317,9 +401,15 @@ def orchestrate_killmail_collection(self):
     Returns:
         dict: Orchestration results
     """
-    db = SessionLocal()
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=90):
+        logger.info("Skipping stale orchestration task")
+        raise Ignore("Task is too old and no longer relevant")
     
+    db = None
     try:
+        db = SessionLocal()
         logger.info("Starting killmail collection orchestration")
         
         # Get all warzone system IDs
@@ -343,10 +433,14 @@ def orchestrate_killmail_collection(self):
             # Calculate execution time: start immediately for first system, then 5-minute intervals
             execution_time = base_time + timedelta(minutes=i * 5)
             
-            # Schedule the task
+            # Calculate expiration time: 2 hours after scheduled execution
+            expiration_time = execution_time + timedelta(hours=2)
+            
+            # Schedule the task with expiration to prevent stale task accumulation
             task_result = collect_system_killmails.apply_async(
                 args=[system_id],
-                eta=execution_time
+                eta=execution_time,
+                expires=expiration_time
             )
             
             scheduled_tasks.append({
@@ -378,7 +472,7 @@ def orchestrate_killmail_collection(self):
     except Exception as exc:
         logger.error(f"Killmail orchestration failed: {str(exc)}", exc_info=True)
         
-        # Retry the task
+        # Retry the task only once
         try:
             raise self.retry(exc=exc, countdown=300)  # Retry after 5 minutes
         except self.MaxRetriesExceededError:
@@ -391,10 +485,11 @@ def orchestrate_killmail_collection(self):
             }
     
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=1, default_retry_delay=300)
 def collect_general_warzone_data(self):
     """
     Collect general warzone data using the existing endpoint.
@@ -405,6 +500,12 @@ def collect_general_warzone_data(self):
     Returns:
         dict: Collection results
     """
+    # Check if this task is too old and should be skipped
+    task_eta = getattr(self.request, 'eta', None)
+    if should_skip_stale_task(task_eta, max_age_minutes=90):
+        logger.info("Skipping stale general warzone data collection task")
+        raise Ignore("Task is too old and no longer relevant")
+    
     logger.info("Starting general warzone data collection")
     
     try:
@@ -434,9 +535,9 @@ def collect_general_warzone_data(self):
     except Exception as exc:
         logger.error(f"General warzone data collection failed: {str(exc)}", exc_info=True)
         
-        # Retry the task with exponential backoff
+        # Retry the task only once with fixed delay
         try:
-            raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+            raise self.retry(exc=exc, countdown=300)  # Fixed 5-minute delay
         except self.MaxRetriesExceededError:
             logger.error("Max retries exceeded for general warzone data collection")
             return {

@@ -29,6 +29,14 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=1000,
     result_expires=3600,  # Results expire after 1 hour
+    # Task expiration and reliability settings
+    task_expires=7200,  # Tasks expire after 2 hours to prevent stale task accumulation
+    task_acks_late=True,  # Acknowledge tasks only after completion
+    task_reject_on_worker_lost=True,  # Reject tasks if worker crashes
+    # Rate limiting to prevent queue flooding
+    task_default_rate_limit='10/m',  # Max 10 tasks per minute per worker
+    # Prevent task duplication during downtime
+    task_ignore_result=False,  # Keep results for deduplication
 )
 
 # Configure periodic tasks
